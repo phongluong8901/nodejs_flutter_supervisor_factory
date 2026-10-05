@@ -1,0 +1,65 @@
+name: my_production_app
+description: "A professional flutter project."
+publish_to: 'none' 
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_echarts: ^2.4.0
+  graphic: ^2.1.0
+  
+  # Icons
+  cupertino_icons: ^1.0.6
+
+  # Quản lý trạng thái & UI nâng cao (Production)
+  provider: ^6.1.1       
+  fl_chart: ^0.66.0      
+  glassmorphism: ^3.0.0  
+  
+  # Kết nối & Dữ liệu
+  dio: ^5.9.1
+  shared_preferences: ^2.2.2
+  
+  # MongoDB-backed account sessions
+  flutter_secure_storage: ^9.2.4
+
+  # Công cụ icon
+  flutter_launcher_icons: ^0.13.1
+  carousel_slider: ^5.0.0
+
+  flutter_local_notifications: ^17.0.0
+  flutter_staggered_animations: ^1.0.0
+  intl: ^0.19.0
+  http: ^1.6.0
+  socket_io_client: ^3.1.4
+  image_picker: ^1.2.1
+  flutter_dotenv: ^5.1.0
+
+# Cấu hình icon ứng dụng (Nằm ngoài cùng, bằng cấp với dependencies)
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icons/logo.png"
+  adaptive_icon_background: "#0D1117" 
+  adaptive_icon_foreground: "assets/icons/logo.png"
+  adaptive_icon_round: "assets/icons/logo.png"
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+
+  # Cấu hình Assets
+  assets:
+    - assets/images/
+    - assets/icons/
+    - .env
+  

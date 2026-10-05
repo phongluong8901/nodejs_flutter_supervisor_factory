@@ -1,0 +1,42 @@
+# Environment variables and local secrets
+.env
+
+
+# Node.js / React / Vite (factory-web and backend)
+node_modules/
+dist/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Runtime uploads (keep the directory placeholder if one exists)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Flutter / Dart
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+coverage/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.lock.tmp
+
+# Flutter platform-local generated configuration
+flutter-iot/android/local.properties
+flutter-iot/ios/Flutter/Generated.xcconfig
+flutter-iot/ios/Flutter/flutter_export_environment.sh
+flutter-iot/ios/Flutter/ephemeral/
+flutter-iot/macos/Flutter/GeneratedPluginRegistrant.swift
+flutter-iot/macos/Flutter/ephemeral/
+flutter-iot/linux/flutter/ephemeral/
+flutter-iot/windows/flutter/ephemeral/
+
+# IDE and operating-system files
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

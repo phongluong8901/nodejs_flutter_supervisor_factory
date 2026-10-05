@@ -1,0 +1,58 @@
+npm install -g firebase-tools
+
+dart pub global activate flutterfire_cli
+
+flutterfire configure
+
+flutter pub add socket_io_client
+
+#--- loi cai cònigure
+Bước 1: Thêm đường dẫn vào Biến môi trường (System PATH)
+Dòng cảnh báo màu vàng trong Terminal của bạn đã chỉ rõ: C:\Users\ADMIN\AppData\Local\Pub\Cache\bin chưa nằm trong Path.
+
+Nhấn phím Windows, gõ: "env" và chọn Edit the system environment variables.
+
+Nhấn vào nút Environment Variables... ở phía dưới.
+
+Ở khung phía trên (User variables for ADMIN), tìm dòng có tên là Path, chọn nó và nhấn Edit....
+
+Nhấn nút New, sau đó dán chính xác đường dẫn này vào: C:\Users\ADMIN\AppData\Local\Pub\Cache\bin
+
+Nhấn OK -> OK -> OK.
+
+---build
+flutter build apk --release
+
+--- build cho loi
+
+--- github
+git config --global user.email "phongluong3366@gmail.com"
+
+git config --global user.name "phongluong8901"
+
+# Line-by-line: Thêm tất cả các file trong project (bao gồm cả logic IoT của cậu)
+git add .
+
+# Line-by-line: Tạo bản commit đầu tiên với danh tính vừa thiết lập
+git commit -m "Initial commit with IoT logic and env security"
+
+# Line-by-line: Đảm bảo đang ở nhánh main
+git branch -M main
+
+# Line-by-line: Nếu lệnh trước báo origin đã tồn tại, hãy dùng lệnh này để cập nhật lại link chuẩn
+git remote set-url origin https://github.com/phongluong8901/flutter-iot.git
+
+# Line-by-line: Đẩy code lên GitHub
+git push -u origin main
+
+
+
+git remote add origin https://github.com/phongluong8901/flutter-iot.git
+git branch -M main
+git push -u origin main
+
+#--- run
+-- BE
+
+-- FE
+
