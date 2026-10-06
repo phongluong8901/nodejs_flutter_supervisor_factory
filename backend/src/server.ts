@@ -185,12 +185,15 @@ auth.get('/me', async (req: Request, res: Response, next: NextFunction) => {
 });
 auth.patch('/me', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const allowed = ['name', 'age', 'phone', 'address'];
+    const allowed = ['name', 'age', 'phone', 'address', 'avatarUrl'];
     const updates = Object.fromEntries(Object.entries(req.body as Record<string, unknown>).filter(([key]) => allowed.includes(key)));
     if (updates.age !== undefined && (!Number.isInteger(Number(updates.age)) || Number(updates.age) < 0 || Number(updates.age) > 130)) {
       return sendError(res, 400, 'Age must be an integer between 0 and 130');
     }
     if (updates.age !== undefined) updates.age = Number(updates.age);
+    if (updates.avatarUrl !== undefined && typeof updates.avatarUrl !== 'string') {
+      return sendError(res, 400, 'Avatar URL must be a string');
+    }
     const user = await MongoUser.findByIdAndUpdate(req.mongoUser?.id, { $set: updates }, { new: true, runValidators: true }).lean();
     if (!user) return sendError(res, 404, 'Account not found');
     return res.json(safeUser(user));

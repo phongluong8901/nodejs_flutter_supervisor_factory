@@ -7,7 +7,7 @@ import { api, type AlertLog, type Device, type FactoryStatus, type Sensor, type 
 
 type DeviceKey = string;
 type SimulationMode = 'balanced' | 'boost' | 'efficiency' | 'emergency';
-type AppTab = 'dashboard' | 'devices' | 'analytics' | 'profile';
+type AppTab = 'dashboard' | 'devices' | 'analytics' | 'cameras' | 'profile';
 
 type DeviceNodeInfo = {
   position: [number, number, number];
@@ -491,6 +491,7 @@ function App() {
   const [editPower, setEditPower] = useState('');
   const [editRuntime, setEditRuntime] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [authView, setAuthView] = useState<'login' | 'signup'>('login');
   const [name, setName] = useState('Factory Admin');
   const [email, setEmail] = useState('demo@factory.local');
@@ -764,6 +765,7 @@ function App() {
         name: profile.name ?? '',
         phone: profile.phone ?? '',
         address: profile.address ?? '',
+        avatarUrl: profile.avatarUrl ?? '',
         ...(profile.age == null ? {} : { age: profile.age }),
       });
       setProfile(updated);
@@ -772,6 +774,25 @@ function App() {
       setProfileError(error instanceof Error ? error.message : 'Không thể cập nhật hồ sơ.');
     } finally {
       setIsSavingProfile(false);
+    }
+  };
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setProfileError('');
+    setProfileMessage('');
+    try {
+      setIsUploadingAvatar(true);
+      const avatarUrl = await api.uploadAvatar(file);
+      const updated = await api.updateProfile({ avatarUrl });
+      setProfile(updated);
+      setProfileMessage('Ảnh đại diện đã được tải lên Cloudinary.');
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : 'Không thể tải lên ảnh đại diện.');
+    } finally {
+      setIsUploadingAvatar(false);
+      event.target.value = '';
     }
   };
 
@@ -801,6 +822,29 @@ function App() {
 
     return alerts.slice(0, 5);
   }, [liveStatus, simulationMode]);
+
+  const mockCameraFeeds = useMemo(() => {
+    const cameraEntries = Object.entries(liveStatus?.devices_control ?? {}).filter(([, device]) =>
+      device.category.toLowerCase().includes('camera') || device.category.toLowerCase().includes('agv'),
+    );
+
+    const fallback = [
+      { id: 'cam-front', name: 'Camera đảo sản phẩm 1', image: 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?auto=format&fit=crop&w=1200&q=80', status: 'Trực tiếp', detail: 'Mặt bằng lắp ráp đang ổn định.' },
+      { id: 'cam-side', name: 'Camera khu vực AGV', image: 'https://images.unsplash.com/photo-1565610222536-ef125c59da73?auto=format&fit=crop&w=1200&q=80', status: 'Đang di chuyển', detail: '2 AGV đang luân chuyển pallet.' },
+      { id: 'cam-pack', name: 'Camera kiểm tra chất lượng', image: 'https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?auto=format&fit=crop&w=1200&q=80', status: 'Theo dõi', detail: 'Dòng sản phẩm mới đang chạy.' },
+    ];
+
+    if (!liveStatus) return fallback;
+    if (!cameraEntries.length) return fallback;
+
+    return cameraEntries.slice(0, 3).map(([key, device], index) => ({
+      id: key,
+      name: device.name,
+      image: fallback[index % fallback.length].image,
+      status: device.is_on ? 'Trực tiếp' : 'Offline',
+      detail: device.is_on ? 'Hệ thống đang ổn định.' : 'Thiết bị đang tạm ngừng.',
+    }));
+  }, [liveStatus]);
 
   const productionEfficiency = useMemo(() => {
     if (!liveStatus) return 0;
@@ -903,6 +947,7 @@ function App() {
     dashboard: { title: 'Tổng quan nhà máy', subtitle: 'GIÁM SÁT HỆ THỐNG TRỰC TIẾP' },
     devices: { title: 'Thiết bị', subtitle: 'DANH SÁCH NODES & CHI TIẾT MÔ PHỎNG' },
     analytics: { title: 'Phân tích vận hành', subtitle: 'LỊCH SỬ TELEMETRY & SỰ KIỆN' },
+    cameras: { title: 'Camera & giám sát', subtitle: 'THEO DÕI FEED MÔ PHỎNG & CAMERA' },
     profile: { title: 'Hồ sơ vận hành', subtitle: 'TÀI KHOẢN & TRẠNG THÁI KẾT NỐI' },
   };
   const selectedTitle = tabTitles[activeTab];
@@ -922,7 +967,7 @@ function App() {
               <button key={key} type="button" className={simulationMode === key ? 'active' : ''} onClick={() => setSimulationMode(key)} style={{ borderColor: simulationMode === key ? mode.accent : 'transparent' }}>{mode.label}</button>
             ))}
           </div>
-          <button className="profile-chip" onClick={() => setActiveTab('profile')}><span>{(profile?.name || profile?.email || 'OP').slice(0, 2).toUpperCase()}</span><strong>{profile?.name || 'Operator'}</strong></button>
+          <button className="profile-chip" onClick={() => setActiveTab('profile')}><span>{profile?.avatarUrl ? <img src={profile.avatarUrl} alt={profile?.name ?? 'avatar'} /> : ((profile?.name || profile?.email || 'OP').slice(0, 2).toUpperCase())}</span><strong>{profile?.name || 'Operator'}</strong></button>
           <button className="ghost-button" onClick={handleLogout}>Đăng xuất</button>
         </div>
       </header>
@@ -932,6 +977,7 @@ function App() {
           ['dashboard', LayoutDashboard, 'Tổng quan'],
           ['devices', Cpu, 'Thiết bị'],
           ['analytics', ChartNoAxesCombined, 'Phân tích'],
+          ['cameras', Camera, 'Camera'],
           ['profile', UserRound, 'Hồ sơ'],
         ] as const).map(([key, Icon, label]) => (
           <button key={key} type="button" className={`main-tab ${activeTab === key ? 'active' : ''}`} onClick={() => setActiveTab(key)}>
@@ -1022,9 +1068,34 @@ function App() {
         <section className="card event-history-card"><div className="panel-header"><div><div className="eyebrow">EVENT TIMELINE</div><h2>Nhật ký cảnh báo & sự kiện</h2></div><span>{logs.length} events</span></div>{logs.length ? <div className="event-timeline">{logs.map((log) => <article key={log.id} className="event-entry"><span className={`event-marker ${log.type}`}><Bell size={14} /></span><div className="event-copy"><strong>{log.title}</strong><p>{log.message}</p><small>{log.sensor ? `${log.sensor} · ` : ''}{new Date(log.createdAt).toLocaleString()}</small></div><span className={`event-type ${log.type}`}>{log.type === 'warning' ? 'WARNING' : 'INFO'}</span></article>)}</div> : <div className="empty-state"><Bell size={26} /><span>Chưa có sự kiện trong nhật ký backend.</span></div>}</section>
       </>}
 
+      {activeTab === 'cameras' && <section className="camera-page">
+        <div className="camera-grid">
+          {mockCameraFeeds.map((feed) => (
+            <article className="card camera-card" key={feed.id}>
+              <div className="camera-preview" style={{ backgroundImage: `url('${feed.image}')` }}>
+                <div className="camera-overlay-top">
+                  <span>{feed.name}</span>
+                  <strong className={feed.status === 'Offline' ? 'camera-offline' : 'camera-live'}>{feed.status}</strong>
+                </div>
+                <div className="camera-overlay-bottom">
+                  <span>{feed.detail}</span>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>}
+
       {activeTab === 'profile' && <section className="profile-layout">
-        <div className="card profile-identity-card"><div className="profile-avatar-large">{(profile?.name || profile?.email || 'OP').slice(0, 2).toUpperCase()}</div><div className="eyebrow">FACTORY OPERATOR</div><h2>{profile?.name || 'Operator'}</h2><p>{profile?.email || '—'}</p><span className="status-pill status-online">SESSION ACTIVE</span><div className="profile-identity-stats"><div><span>Thiết bị</span><strong>{deviceEntries.length}</strong></div><div><span>Đang chạy</span><strong>{activeDevices}</strong></div></div></div>
-        <div className="card profile-form-card"><div className="panel-header"><div><div className="eyebrow">ACCOUNT SETTINGS</div><h2>Thông tin tài khoản</h2></div><UserRound size={19} /></div>{profile ? <form className="profile-form" onSubmit={(event) => void handleSaveProfile(event)}><label>Họ tên<input value={profile.name ?? ''} onChange={(event) => setProfile({ ...profile, name: event.target.value })} /></label><label>Email<input value={profile.email} readOnly /></label><div className="edit-fields"><label>Số điện thoại<input value={profile.phone ?? ''} onChange={(event) => setProfile({ ...profile, phone: event.target.value })} placeholder="Chưa cập nhật" /></label><label>Tuổi<input type="number" min="0" max="130" value={profile.age ?? ''} onChange={(event) => setProfile({ ...profile, age: event.target.value === '' ? null : Number(event.target.value) })} placeholder="—" /></label></div><label>Địa chỉ<input value={profile.address ?? ''} onChange={(event) => setProfile({ ...profile, address: event.target.value })} placeholder="Chưa cập nhật" /></label>{profileError && <div className="error-box">{profileError}</div>}{profileMessage && <div className="success-box">{profileMessage}</div>}<button className="toggle-button" type="submit" disabled={isSavingProfile}>{isSavingProfile ? 'Đang lưu...' : 'Lưu thông tin'}</button></form> : <div className="empty-state">Đang tải dữ liệu hồ sơ...</div>}</div>
+        <div className="card profile-identity-card">
+          <div className="profile-avatar-large">{profile?.avatarUrl ? <img src={profile.avatarUrl} alt={profile.name ?? 'avatar'} /> : ((profile?.name || profile?.email || 'OP').slice(0, 2).toUpperCase())}</div>
+          <div className="eyebrow">FACTORY OPERATOR</div>
+          <h2>{profile?.name || 'Operator'}</h2>
+          <p>{profile?.email || '—'}</p>
+          <span className="status-pill status-online">SESSION ACTIVE</span>
+          <div className="profile-identity-stats"><div><span>Thiết bị</span><strong>{deviceEntries.length}</strong></div><div><span>Đang chạy</span><strong>{activeDevices}</strong></div></div>
+        </div>
+        <div className="card profile-form-card"><div className="panel-header"><div><div className="eyebrow">ACCOUNT SETTINGS</div><h2>Thông tin tài khoản</h2></div><UserRound size={19} /></div>{profile ? <form className="profile-form" onSubmit={(event) => void handleSaveProfile(event)}><div className="profile-avatar-editor"><div className="profile-avatar-large small">{profile.avatarUrl ? <img src={profile.avatarUrl} alt={profile.name ?? 'avatar'} /> : ((profile?.name || profile?.email || 'OP').slice(0, 2).toUpperCase())}</div><label className="upload-avatar-btn"><input type="file" accept="image/*" onChange={handleAvatarUpload} />{isUploadingAvatar ? 'Đang tải...' : 'Tải ảnh lên'}</label></div><label>Họ tên<input value={profile.name ?? ''} onChange={(event) => setProfile({ ...profile, name: event.target.value })} /></label><label>Email<input value={profile.email} readOnly /></label><div className="edit-fields"><label>Số điện thoại<input value={profile.phone ?? ''} onChange={(event) => setProfile({ ...profile, phone: event.target.value })} placeholder="Chưa cập nhật" /></label><label>Tuổi<input type="number" min="0" max="130" value={profile.age ?? ''} onChange={(event) => setProfile({ ...profile, age: event.target.value === '' ? null : Number(event.target.value) })} placeholder="—" /></label></div><label>Địa chỉ<input value={profile.address ?? ''} onChange={(event) => setProfile({ ...profile, address: event.target.value })} placeholder="Chưa cập nhật" /></label>{profileError && <div className="error-box">{profileError}</div>}{profileMessage && <div className="success-box">{profileMessage}</div>}<button className="toggle-button" type="submit" disabled={isSavingProfile}>{isSavingProfile ? 'Đang lưu...' : 'Lưu thông tin'}</button></form> : <div className="empty-state">Đang tải dữ liệu hồ sơ...</div>}</div>
         <div className="card profile-system-card"><div className="eyebrow">SYSTEM CONNECTION</div><h3>Trạng thái hệ thống</h3><div className="system-status-row"><span>Backend API</span><strong><i /> Connected</strong></div><div className="system-status-row"><span>Database telemetry</span><strong><i /> {telemetryHistory.length ? 'Receiving data' : 'No history yet'}</strong></div><div className="system-status-row"><span>Simulation mode</span><strong>{SIMULATION_MODES[simulationMode].label}</strong></div><div className="system-status-row"><span>Phiên đăng nhập</span><strong>{profile?.email}</strong></div></div>
       </section>}
     </div>

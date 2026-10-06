@@ -7,9 +7,32 @@ export type TelemetryPoint = { timestamp: string; sensors: Record<string, Sensor
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const TOKEN_KEY = 'factory_web_token';
+const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME ?? '';
+const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET ?? '';
 
 export const api = {
   get token() { return localStorage.getItem(TOKEN_KEY); },
+  async uploadAvatar(file: File): Promise<string> {
+    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
+      throw new Error('Thiếu cấu hình Cloudinary. Vui lòng thêm VITE_CLOUDINARY_CLOUD_NAME và VITE_CLOUDINARY_UPLOAD_PRESET.');
+    }
+
+    const form = new FormData();
+    form.append('file', file);
+    form.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+      method: 'POST',
+      body: form,
+    });
+
+    const data = await response.json().catch(() => ({} as { secure_url?: string; error?: { message?: string } }));
+    if (!response.ok || !data.secure_url) {
+      throw new Error(data.error?.message || 'Không thể tải ảnh lên Cloudinary.');
+    }
+
+    return data.secure_url as string;
+  },
   async login(email: string, password: string): Promise<{ token: string; user: User }> {
     const result = await request<{ token: string; user: User }>('/auth/login', {
       method: 'POST',
@@ -29,7 +52,7 @@ export const api = {
   logout() { localStorage.removeItem(TOKEN_KEY); },
   async status() { return request<FactoryStatus>('/iot/status'); },
   async profile() { return request<User>('/auth/me'); },
-  async updateProfile(updates: Partial<Pick<User, 'name' | 'age' | 'phone' | 'address'>>) {
+  async updateProfile(updates: Partial<Pick<User, 'name' | 'age' | 'phone' | 'address' | 'avatarUrl'>>) {
     return request<User>('/auth/me', { method: 'PATCH', body: JSON.stringify(updates) });
   },
   async logs() { return request<AlertLog[]>('/iot/logs'); },

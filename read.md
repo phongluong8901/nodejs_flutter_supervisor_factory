@@ -3,7 +3,7 @@ cd backend
 npm run dev
 
 # --- FE web
-factory-web
+cd factory-web
 npm run dev
 
 # --- Mobile/app

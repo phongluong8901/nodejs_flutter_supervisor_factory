@@ -10,8 +10,8 @@ type DeviceDefinition = {
 export const DEVICE_INVENTORY: Record<string, DeviceDefinition> = {
   arm_robot_1: { name: 'Arm Robot 1', category: 'Robot Arm', icon: 'robot', power: 320, },
   arm_robot_2: { name: 'Arm Robot 2', category: 'Robot Arm', icon: 'robot', power: 320, },
-  avg_robot_1: { name: 'AVG Robot 1', category: 'AVG Robot', icon: 'robot', power: 180, },
-  avg_robot_2: { name: 'AVG Robot 2', category: 'AVG Robot', icon: 'robot', power: 180, },
+  avg_robot_1: { name: 'AGV Robot 1', category: 'AGV Robot', icon: 'robot', power: 180, },
+  avg_robot_2: { name: 'AGV Robot 2', category: 'AGV Robot', icon: 'robot', power: 180, },
   conveyor_belt_1: { name: 'Băng tải 1', category: 'Conveyor', icon: 'conveyor', power: 750, },
   conveyor_belt_2: { name: 'Băng tải 2', category: 'Conveyor', icon: 'conveyor', power: 750, },
   left_led_1: { name: 'LED trái 1', category: 'LED', icon: 'light', power: 18, },
@@ -20,8 +20,8 @@ export const DEVICE_INVENTORY: Record<string, DeviceDefinition> = {
   right_led_2: { name: 'LED phải 2', category: 'LED', icon: 'light', power: 18, },
   corner_fan_1: { name: 'Quạt góc 1', category: 'Fan', icon: 'fan', power: 90, },
   corner_fan_2: { name: 'Quạt góc 2', category: 'Fan', icon: 'fan', power: 90, },
-  security_camera_1: { name: 'Camera giám sát góc 1', category: 'Camera', icon: 'camera', power: 12, },
-  security_camera_2: { name: 'Camera giám sát góc 2', category: 'Camera', icon: 'camera', power: 12, },
+  security_camera_1: { name: 'Camera giám sát góc 1', category: 'Security Camera', icon: 'camera', power: 12, },
+  security_camera_2: { name: 'Camera giám sát góc 2', category: 'Security Camera', icon: 'camera', power: 12, },
   auto_machine_1: { name: 'Máy Auto 1', category: 'Machine', icon: 'machine', power: 500, },
   auto_machine_2: { name: 'Máy Auto 2', category: 'Machine', icon: 'machine', power: 500, },
 };
