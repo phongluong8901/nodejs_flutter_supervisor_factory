@@ -1,5 +1,19 @@
 # Smart Factory IoT — FactoryOS
 
+1. Web
+<img width="1603" height="998" alt="image" src="https://github.com/user-attachments/assets/1e7c5e22-560a-4386-b5f1-f80fa1719ac5" />
+<img width="1526" height="991" alt="image" src="https://github.com/user-attachments/assets/dcb55273-aa19-4ca8-8278-3f6ee8d1fd27" />
+<img width="1477" height="993" alt="image" src="https://github.com/user-attachments/assets/7408d571-0d95-4616-bec7-adcbdaaf59e3" />
+<img width="1557" height="792" alt="image" src="https://github.com/user-attachments/assets/90fc12a0-3f27-4094-93c9-63b9c17e72e3" />
+
+2. Mobile /app
+<img width="712" height="931" alt="image" src="https://github.com/user-attachments/assets/7fa64b34-9d32-4405-b9d9-84b4dda9a51d" />
+<img width="705" height="936" alt="image" src="https://github.com/user-attachments/assets/aa21e6f9-3ecd-413a-96f0-446f4a6984d9" />
+<img width="718" height="931" alt="image" src="https://github.com/user-attachments/assets/547e236d-c0ae-4649-a6b7-ec5e7db9548b" />
+<img width="720" height="860" alt="image" src="https://github.com/user-attachments/assets/029f7078-5853-499d-99e9-02b1d80669a3" />
+
+
+
 Ứng dụng giám sát và điều khiển nhà máy thông minh gồm ứng dụng Flutter, web digital twin 3D và API Node.js lưu dữ liệu trong MongoDB. Cả hai giao diện dùng chung backend, tài khoản và trạng thái của 16 thiết bị.
 
 ## Thành phần
