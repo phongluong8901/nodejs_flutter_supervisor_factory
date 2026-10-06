@@ -1,19 +1,30 @@
-import { Canvas, useFrame } from '@react-three/fiber';
-import { Html, OrbitControls } from '@react-three/drei';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Group } from 'three';
-import { Activity, ArrowLeftRight, Bell, Camera, ChartNoAxesCombined, ChevronRight, Clock3, Cpu, Fan, Gauge, LayoutDashboard, Lightbulb, List, Radio, RefreshCw, Search, Settings, UserRound, Workflow, Wrench, X, Zap } from 'lucide-react';
-import { api, type AlertLog, type Device, type FactoryStatus, type Sensor, type TelemetryPoint, type User } from './api';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls } from '@react-three/drei';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Activity, ArrowLeftRight, Bell, Camera, ChartNoAxesCombined, ChevronRight, Clock3,
+  Cpu, Fan, Gauge, LayoutDashboard, Lightbulb, Radio, RefreshCw, Search, Settings,
+  UserRound, Workflow, Wrench, Zap, ShieldAlert, Layers, Video, Sliders, Play, Square,
+  Eye, Monitor
+} from 'lucide-react';
+import {
+  api,
+  type AlertLog,
+  type Device,
+  type FactoryStatus,
+  type Sensor,
+  type TelemetryPoint,
+  type User,
+  type ManualControl
+} from './api';
+import { AdminDashboard } from './components/AdminDashboard';
+import { FactoryMap2D } from './components/FactoryMap2D';
+import { FactoryScene, DeviceNode } from './components/FactoryScene3D';
+import { ManualDeviceControllerModal } from './components/ManualControllers';
+import { FpvCameraOverlay } from './components/FPVCameraOverlay';
 
-type DeviceKey = string;
 type SimulationMode = 'balanced' | 'boost' | 'efficiency' | 'emergency';
-type AppTab = 'dashboard' | 'devices' | 'analytics' | 'cameras' | 'profile';
-
-type DeviceNodeInfo = {
-  position: [number, number, number];
-  scale: [number, number, number];
-  color: string;
-};
+export type AppTab = 'dashboard' | 'admin' | 'map2d' | 'devices' | 'cameras' | 'analytics' | 'profile';
 
 const SENSOR_META: Array<{ key: keyof FactoryStatus['iot_sensors']; label: string; unit: string }> = [
   { key: 'temperature', label: 'Nhiệt độ', unit: '°C' },
@@ -27,25 +38,6 @@ const SIMULATION_MODES: Record<SimulationMode, { label: string; description: str
   boost: { label: 'Boost', description: 'Tăng năng suất', accent: '#f59e0b', multiplier: 1.14 },
   efficiency: { label: 'Efficiency', description: 'Tiết kiệm điện', accent: '#34d399', multiplier: 0.88 },
   emergency: { label: 'Emergency', description: 'Bảo vệ an toàn', accent: '#f87171', multiplier: 0.7 },
-};
-
-const DEVICE_LAYOUT: Record<string, DeviceNodeInfo> = {
-  arm_robot_1: { position: [-3.5, 0.25, -1.5], scale: [1, 1, 1], color: '#7dd3fc' },
-  arm_robot_2: { position: [3.5, 0.25, -1.5], scale: [1, 1, 1], color: '#7dd3fc' },
-  avg_robot_1: { position: [0, 0.25, 0], scale: [1, 1, 1], color: '#a5b4fc' },
-  avg_robot_2: { position: [0, 0.25, 0], scale: [1, 1, 1], color: '#a5b4fc' },
-  conveyor_belt_1: { position: [-3, 0.25, 0.6], scale: [1, 1, 1], color: '#fca5a5' },
-  conveyor_belt_2: { position: [3, 0.25, 0.6], scale: [1, 1, 1], color: '#fca5a5' },
-  left_led_1: { position: [-4.5, 3.4, 2.6], scale: [1, 1, 1], color: '#facc15' },
-  left_led_2: { position: [-2.7, 3.4, 2.6], scale: [1, 1, 1], color: '#facc15' },
-  right_led_1: { position: [2.7, 3.4, 2.6], scale: [1, 1, 1], color: '#facc15' },
-  right_led_2: { position: [4.5, 3.4, 2.6], scale: [1, 1, 1], color: '#facc15' },
-  corner_fan_1: { position: [-5.4, 2.5, -0.6], scale: [1, 1, 1], color: '#2dd4bf' },
-  corner_fan_2: { position: [5.4, 2.5, -0.6], scale: [1, 1, 1], color: '#2dd4bf' },
-  security_camera_1: { position: [-5.5, 2.5, -3.6], scale: [1, 1, 1], color: '#c084fc' },
-  security_camera_2: { position: [5.5, 2.5, -3.6], scale: [1, 1, 1], color: '#c084fc' },
-  auto_machine_1: { position: [-1.3, 0.25, 3.1], scale: [1, 1, 1], color: '#34d399' },
-  auto_machine_2: { position: [1.3, 0.25, 3.1], scale: [1, 1, 1], color: '#34d399' },
 };
 
 const levelColors: Record<'GREEN' | 'YELLOW' | 'RED', string> = {
@@ -83,287 +75,6 @@ function DeviceIcon({ device, size = 18 }: { device: Device; size?: number }) {
   if (category.includes('robot')) return <Workflow size={size} />;
   if (category.includes('machine')) return <Settings size={size} />;
   return <Radio size={size} />;
-}
-
-function DeviceNode({
-  name,
-  device,
-  isSelected,
-  onClick,
-  detailView = false,
-}: {
-  name: DeviceKey;
-  device: Device;
-  isSelected: boolean;
-  onClick: () => void;
-  detailView?: boolean;
-}) {
-  const node = DEVICE_LAYOUT[name] ?? { position: [0, 0, 0], scale: [1, 1, 1], color: '#94a3b8' };
-  const category = device.category.toLowerCase();
-  const isOn = device.is_on;
-  const accent = isOn ? '#00ffc2' : '#f87171';
-  const bodyColor = isOn ? node.color : '#525b68';
-  const robotArm = category.includes('robot arm');
-  const agv = category.includes('avg');
-  const conveyor = category.includes('conveyor');
-  const led = category.includes('led');
-  const fan = category.includes('fan');
-  const camera = category.includes('camera');
-  const machine = category.includes('machine');
-  const upperArmRef = useRef<Group | null>(null);
-  const forearmRef = useRef<Group | null>(null);
-  const fanRotorRef = useRef<Group | null>(null);
-  const rollerRef = useRef<Group | null>(null);
-  const workpieceRef = useRef<Group | null>(null);
-  const rootRef = useRef<Group | null>(null);
-  const agvWheelRef = useRef<Group | null>(null);
-
-  useFrame((state) => {
-    const t = state.clock.getElapsedTime();
-    const cycle = t * 0.58 + (name.endsWith('_2') ? Math.PI : 0);
-    if (upperArmRef.current) upperArmRef.current.rotation.z = isOn ? -0.52 + Math.sin(cycle) * 0.38 : -0.52;
-    if (forearmRef.current) forearmRef.current.rotation.z = isOn ? 0.78 + Math.sin(cycle - 1.15) * 0.48 : 0.78;
-    if (fanRotorRef.current) fanRotorRef.current.rotation.z = isOn ? t * 18 : 0;
-    if (rollerRef.current) {
-      rollerRef.current.children.forEach((roller) => {
-        if (roller.children[0]) {
-          roller.children[0].rotation.y = isOn ? t * 5.5 * (name.endsWith('_2') ? -1 : 1) : 0;
-        }
-      });
-    }
-    if (agvWheelRef.current) {
-      agvWheelRef.current.children.forEach((wheel) => {
-        if (wheel.children[0]) wheel.children[0].rotation.y = isOn ? t * 7 : 0;
-      });
-    }
-    if (workpieceRef.current) {
-      const direction = name.endsWith('_2') ? -1 : 1;
-      if (isOn) {
-        workpieceRef.current.children.forEach((item, index) => {
-          const travel = (t * 0.32 + index * 0.48) % 1;
-          item.position.x = direction > 0 ? -1.08 + travel * 2.16 : 1.08 - travel * 2.16;
-        });
-      }
-    }
-    if (agv && rootRef.current && isOn && !detailView) {
-      const phase = (t * 0.052 + (name.endsWith('_2') ? 0.5 : 0)) * Math.PI * 2;
-      const x = Math.cos(phase) * 4.95;
-      const z = Math.sin(phase) * 2.2;
-      const dx = -Math.sin(phase) * 4.95;
-      const dz = Math.cos(phase) * 2.2;
-      rootRef.current.position.set(x, node.position[1], z);
-      rootRef.current.rotation.y = Math.atan2(dx, dz);
-    }
-  });
-
-  return (
-    <group
-      ref={rootRef}
-      position={detailView ? [0, led ? 0.95 : fan || camera ? 0.72 : 0.25, 0] : node.position}
-      scale={detailView ? led ? [2.2, 2.2, 2.2] : [1.45, 1.45, 1.45] : node.scale}
-      rotation={[0, camera && name.endsWith('_2') ? Math.PI : robotArm && name.endsWith('_2') ? Math.PI : 0, 0]}
-      onClick={(event) => { event.stopPropagation(); onClick(); }}
-      onPointerOver={(event) => { event.stopPropagation(); document.body.style.cursor = 'pointer'; }}
-      onPointerOut={() => { document.body.style.cursor = 'default'; }}
-    >
-      {robotArm ? (
-        <>
-          <mesh position={[0, 0.175, 0]} castShadow receiveShadow>
-            <cylinderGeometry args={[0.55, 0.62, 0.35, 24]} />
-            <meshStandardMaterial color="#263344" metalness={0.75} roughness={0.3} />
-          </mesh>
-          <mesh position={[0, 0.49, 0]} castShadow>
-            <cylinderGeometry args={[0.24, 0.3, 0.18, 20]} />
-            <meshStandardMaterial color={bodyColor} metalness={0.65} roughness={0.28} />
-          </mesh>
-          <group ref={upperArmRef} position={[0, 0.59, 0]}>
-            <mesh position={[0.53, 0, 0]} castShadow>
-              <boxGeometry args={[1.06, 0.2, 0.24]} />
-              <meshStandardMaterial color={bodyColor} metalness={0.55} roughness={0.3} />
-            </mesh>
-            <mesh position={[1.06, 0, 0]} castShadow>
-              <sphereGeometry args={[0.24, 18, 18]} />
-              <meshStandardMaterial color="#d5a12e" metalness={0.7} roughness={0.25} />
-            </mesh>
-            <group ref={forearmRef} position={[1.06, 0, 0]}>
-              <mesh position={[0.43, 0, 0]} castShadow>
-                <boxGeometry args={[0.86, 0.16, 0.19]} />
-                <meshStandardMaterial color={bodyColor} metalness={0.55} roughness={0.3} />
-              </mesh>
-              <mesh position={[0.88, 0, 0]} castShadow>
-                <sphereGeometry args={[0.16, 16, 16]} />
-                <meshStandardMaterial color="#263344" metalness={0.75} roughness={0.25} />
-              </mesh>
-              <mesh position={[1.02, -0.11, 0]} castShadow>
-                <boxGeometry args={[0.28, 0.06, 0.08]} />
-                <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={isOn ? 0.7 : 0.12} />
-              </mesh>
-            </group>
-          </group>
-          <mesh position={[0, 0.26, 0.32]} castShadow>
-            <boxGeometry args={[0.36, 0.12, 0.05]} />
-            <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={isOn ? 1.1 : 0.15} />
-          </mesh>
-        </>
-      ) : agv ? (
-        <>
-          <mesh position={[0, 0.34, 0]} castShadow receiveShadow>
-            <boxGeometry args={[1.2, 0.46, 0.82]} />
-            <meshStandardMaterial color={bodyColor} metalness={0.55} roughness={0.32} />
-          </mesh>
-          <mesh position={[0, 0.68, -0.04]} castShadow>
-            <boxGeometry args={[0.72, 0.18, 0.58]} />
-            <meshStandardMaterial color="#64748b" metalness={0.7} roughness={0.28} />
-          </mesh>
-          <group ref={agvWheelRef}>
-            {[-1, 1].map((side) => [-1, 1].map((front) => (
-              <group key={`wheel-${side}-${front}`} position={[side * 0.48, 0.17, front * 0.31]} rotation={[0, 0, Math.PI / 2]}>
-                <group>
-                  <mesh castShadow>
-                    <cylinderGeometry args={[0.16, 0.16, 0.13, 18]} />
-                    <meshStandardMaterial color="#111827" roughness={0.8} />
-                  </mesh>
-                </group>
-              </group>
-            )))}
-          </group>
-          <mesh position={[0.4, 0.43, 0.42]} castShadow>
-            <sphereGeometry args={[0.08, 16, 16]} />
-            <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={isOn ? 1 : 0.15} />
-          </mesh>
-          <mesh position={[0, 0.6, -0.38]}>
-            <boxGeometry args={[0.25, 0.08, 0.04]} />
-            <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={isOn ? 0.8 : 0.1} />
-          </mesh>
-        </>
-      ) : conveyor ? (
-        <>
-          <mesh position={[0, 0.42, 0]} castShadow receiveShadow>
-            <boxGeometry args={[3.1, 0.16, 0.9]} />
-            <meshStandardMaterial color="#334155" metalness={0.75} roughness={0.35} />
-          </mesh>
-          <group ref={rollerRef}>
-            {Array.from({ length: 8 }, (_, index) => (
-              <group key={`roller-${index}`} position={[-1.3 + index * 0.37, 0.49, 0]} rotation={[Math.PI / 2, 0, 0]}>
-                <group>
-                  <mesh castShadow>
-                    <cylinderGeometry args={[0.09, 0.09, 0.78, 16]} />
-                    <meshStandardMaterial color="#94a3b8" metalness={0.85} roughness={0.25} />
-                  </mesh>
-                </group>
-              </group>
-            ))}
-          </group>
-          {[-1, 1].map((side) => <mesh key={`side-rail-${side}`} position={[0, 0.58, side * 0.43]} castShadow>
-            <boxGeometry args={[3.1, 0.12, 0.1]} />
-            <meshStandardMaterial color="#475569" metalness={0.7} />
-          </mesh>)}
-          {[-1, 1].map((side) => <mesh key={`support-${side}`} position={[side * 1.25, 0.18, 0]} castShadow>
-            <boxGeometry args={[0.14, 0.36, 0.72]} />
-            <meshStandardMaterial color="#475569" metalness={0.7} />
-          </mesh>)}
-          <group ref={workpieceRef}>
-            {[0, 1].map((index) => <mesh key={`part-${index}`} position={[index * 1.04, 0.76, 0]} castShadow>
-              <boxGeometry args={[0.38, 0.26, 0.38]} />
-              <meshStandardMaterial color={index === 0 ? '#f59e0b' : '#38bdf8'} metalness={0.25} roughness={0.42} />
-            </mesh>)}
-          </group>
-        </>
-      ) : led ? (
-        <>
-            <mesh position={[0, 0, 0]}>
-            <boxGeometry args={[1.05, 0.14, 0.32]} />
-            <meshStandardMaterial color="#334155" metalness={0.75} roughness={0.3} />
-          </mesh>
-          <mesh position={[0, -0.1, 0]}>
-            <boxGeometry args={[0.86, 0.1, 0.18]} />
-            <meshStandardMaterial color={isOn ? '#fff7cc' : '#7f1d1d'} emissive={isOn ? '#fde68a' : '#7f1d1d'} emissiveIntensity={isOn ? 2 : 0.15} />
-          </mesh>
-        </>
-      ) : fan ? (
-        <>
-          <mesh rotation={[0, 0, 0]}>
-            <torusGeometry args={[0.62, 0.08, 12, 32]} />
-            <meshStandardMaterial color="#64748b" metalness={0.8} roughness={0.25} />
-          </mesh>
-          <group ref={fanRotorRef}>
-            {[0, 1, 2].map((index) => (
-              <mesh key={`blade-${index}`} rotation={[0, 0, index * Math.PI * 2 / 3]} position={[0, 0, 0.03]}>
-                <boxGeometry args={[0.16, 0.52, 0.08]} />
-                <meshStandardMaterial color={bodyColor} metalness={0.65} roughness={0.3} />
-              </mesh>
-            ))}
-            <mesh position={[0, 0, 0.1]} rotation={[Math.PI / 2, 0, 0]}>
-              <cylinderGeometry args={[0.17, 0.17, 0.2, 20]} />
-              <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={isOn ? 0.7 : 0.1} />
-            </mesh>
-          </group>
-          <mesh position={[0, 0, -0.2]} rotation={[Math.PI / 2, 0, 0]}>
-              <cylinderGeometry args={[0.15, 0.15, 0.4, 16]} />
-            <meshStandardMaterial color="#475569" metalness={0.75} />
-          </mesh>
-        </>
-      ) : camera ? (
-        <>
-          <mesh position={[0, 0, -0.26]}>
-            <boxGeometry args={[0.16, 0.16, 0.55]} />
-            <meshStandardMaterial color="#64748b" metalness={0.75} />
-          </mesh>
-          <mesh position={[0.2, -0.1, 0]} rotation={[0, 0, -0.25]} castShadow>
-            <boxGeometry args={[0.72, 0.38, 0.42]} />
-            <meshStandardMaterial color="#334155" metalness={0.65} roughness={0.32} />
-          </mesh>
-          <mesh position={[0.54, -0.1, 0]} rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[0.14, 0.18, 0.12, 24]} />
-            <meshStandardMaterial color="#0f172a" metalness={0.5} />
-          </mesh>
-          <mesh position={[0.61, -0.1, 0]}>
-            <sphereGeometry args={[0.09, 18, 18]} />
-            <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={isOn ? 1.2 : 0.12} />
-          </mesh>
-        </>
-      ) : machine ? (
-        <>
-          <mesh position={[0, 0.83, 0]} castShadow receiveShadow>
-            <boxGeometry args={[1.55, 1.65, 1.05]} />
-            <meshStandardMaterial color="#334155" metalness={0.58} roughness={0.38} />
-          </mesh>
-          <mesh position={[0, 0.86, 0.54]}>
-            <boxGeometry args={[0.62, 0.7, 0.05]} />
-            <meshStandardMaterial color="#0f172a" metalness={0.35} roughness={0.3} />
-          </mesh>
-          <mesh position={[0, 1.02, 0.58]}>
-            <boxGeometry args={[0.42, 0.24, 0.035]} />
-            <meshStandardMaterial color={isOn ? '#155e75' : '#1e293b'} emissive={isOn ? '#06b6d4' : '#0f172a'} emissiveIntensity={isOn ? 0.8 : 0.05} />
-          </mesh>
-          {[0, 1, 2].map((index) => (
-            <mesh key={`lamp-${index}`} position={[-0.14 + index * 0.14, 0.67, 0.59]}>
-              <sphereGeometry args={[0.035, 12, 12]} />
-              <meshStandardMaterial color={index === 0 ? accent : '#64748b'} emissive={index === 0 ? accent : '#0f172a'} emissiveIntensity={index === 0 && isOn ? 1 : 0.1} />
-            </mesh>
-          ))}
-          <mesh position={[0, 0.22, 0]}>
-            <boxGeometry args={[1.4, 0.12, 0.9]} />
-            <meshStandardMaterial color="#1e293b" metalness={0.7} />
-          </mesh>
-        </>
-      ) : (
-        <mesh position={[0, 0.5, 0]} castShadow receiveShadow>
-          <boxGeometry args={[1, 1, 1]} />
-          <meshStandardMaterial color={bodyColor} emissive={accent} emissiveIntensity={isOn ? 0.5 : 0.08} />
-        </mesh>
-      )}
-      {isSelected && <mesh position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.72, 0.78, 40]} />
-        <meshBasicMaterial color={accent} transparent opacity={0.9} />
-      </mesh>}
-      {isSelected && (
-        <Html position={[0, led ? 0.42 : 2.1, 0]} center>
-          <div className="device-label"><span style={{ color: accent }}>●</span> {device.name}</div>
-        </Html>
-      )}
-    </group>
-  );
 }
 
 function DeviceSimulation({ name, device }: { name: string; device: Device }) {
@@ -409,75 +120,14 @@ function TrendChart({ values, color, label, unit }: { values: number[]; color: s
   );
 }
 
-function FactoryScene({
-  devices,
-  selectedDevice,
-  onSelect,
-}: {
-  devices: Record<string, Device>;
-  selectedDevice: string | null;
-  onSelect: (name: string) => void;
-}) {
-  return (
-    <Canvas camera={{ position: [8, 8, 10], fov: 42 }} shadows>
-      <color attach="background" args={['#020817']} />
-      <ambientLight intensity={0.75} />
-      <directionalLight position={[8, 12, 5]} intensity={1.3} castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} />
-      <pointLight position={[-4, 4, 0]} intensity={18} color="#38bdf8" />
-      <pointLight position={[5, 4, 0]} intensity={12} color="#a78bfa" />
-
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.65, 0]} receiveShadow>
-        <planeGeometry args={[20, 14]} />
-        <meshStandardMaterial color="#0b1220" metalness={0.7} roughness={0.4} />
-      </mesh>
-
-      <mesh position={[0, 0.15, 0]} receiveShadow>
-        <boxGeometry args={[12.5, 0.2, 8.5]} />
-        <meshStandardMaterial color="#111827" metalness={0.8} roughness={0.35} />
-      </mesh>
-
-      <mesh position={[0, 0.4, -4.2]}>
-        <boxGeometry args={[12.8, 0.8, 0.15]} />
-        <meshStandardMaterial color="#1e293b" emissive="#0f172a" emissiveIntensity={0.3} />
-      </mesh>
-
-      <mesh position={[0, 0.4, 4.2]}>
-        <boxGeometry args={[12.8, 0.8, 0.15]} />
-        <meshStandardMaterial color="#1e293b" emissive="#0f172a" emissiveIntensity={0.3} />
-      </mesh>
-
-      <mesh position={[-6.2, 0.4, 0]}>
-        <boxGeometry args={[0.15, 0.8, 8.2]} />
-        <meshStandardMaterial color="#1e293b" emissive="#0f172a" emissiveIntensity={0.3} />
-      </mesh>
-
-      <mesh position={[6.2, 0.4, 0]}>
-        <boxGeometry args={[0.15, 0.8, 8.2]} />
-        <meshStandardMaterial color="#1e293b" emissive="#0f172a" emissiveIntensity={0.3} />
-      </mesh>
-
-      <mesh position={[0, 0.258, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[4.95, 2.2, 1]}>
-        <ringGeometry args={[0.995, 1.008, 128]} />
-        <meshBasicMaterial color="#eab308" transparent opacity={0.8} />
-      </mesh>
-      <mesh position={[0, 0.258, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[4.82, 2.07, 1]}>
-        <ringGeometry args={[0.995, 1.008, 128]} />
-        <meshBasicMaterial color="#eab308" transparent opacity={0.8} />
-      </mesh>
-
-      {Object.entries(devices).map(([name, device]) => (
-        <DeviceNode key={name} name={name} device={device} isSelected={selectedDevice === name} onClick={() => onSelect(name)} />
-      ))}
-
-      <OrbitControls enablePan={false} minDistance={8} maxDistance={18} maxPolarAngle={Math.PI / 2.1} />
-    </Canvas>
-  );
-}
-
 function App() {
   const [status, setStatus] = useState<FactoryStatus | null>(null);
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
+  const [dashboardViewMode, setDashboardViewMode] = useState<'3d' | '2d'>('3d');
+  const [manualControlDeviceId, setManualControlDeviceId] = useState<string | null>(null);
+  const [fpvCameraId, setFpvCameraId] = useState<string | null>('security_camera_1');
+  const [isFpvFullscreen, setIsFpvFullscreen] = useState(false);
   const [deviceSearch, setDeviceSearch] = useState('');
   const [logs, setLogs] = useState<AlertLog[]>([]);
   const [telemetryHistory, setTelemetryHistory] = useState<TelemetryPoint[]>([]);
@@ -506,10 +156,9 @@ function App() {
   const devices = useMemo(() => status?.devices_control ?? {}, [status]);
   const deviceEntries = useMemo(() => Object.entries(devices), [devices]);
 
-  const liveStatus = useMemo(() => {
+  const liveStatus = useMemo((): FactoryStatus | null => {
     if (!status) return null;
-    const multiplier = SIMULATION_MODES[simulationMode].multiplier;
-    const safeSensors = {
+    const safeSensors: Record<string, Sensor> = {
       temperature: { value: 28, unit: '°C', level: 'GREEN', is_online: true, updated_at: new Date().toISOString() },
       pressure: { value: 1012, unit: 'hPa', level: 'GREEN', is_online: true, updated_at: new Date().toISOString() },
       light_intensity: { value: 1500, unit: 'lux', level: 'GREEN', is_online: true, updated_at: new Date().toISOString() },
@@ -518,7 +167,7 @@ function App() {
     };
     const safeDevices = { ...(status.devices_control ?? {}) } as Record<string, Device>;
 
-    const iot_sensors = Object.fromEntries(
+    const iot_sensors: Record<string, Sensor> = Object.fromEntries(
       Object.entries(safeSensors).map(([key, sensor]) => {
         const base = Number(sensor?.value ?? 0);
         const adjusted = key === 'temperature'
@@ -528,71 +177,36 @@ function App() {
             : key === 'pressure'
               ? base * (simulationMode === 'efficiency' ? 0.97 : 1)
               : key === 'light_intensity'
-                ? base * (simulationMode === 'efficiency' ? 0.9 : 1.08)
+                ? base * (simulationMode === 'boost' ? 1.12 : 1)
                 : base;
-
-        const finalValue = clamp(adjusted * multiplier, key === 'light_intensity' ? 300 : 0, key === 'light_intensity' ? 5000 : 5000);
-        const nextLevel: 'GREEN' | 'YELLOW' | 'RED' = finalValue >= (key === 'temperature' ? 40 : key === 'humidity' ? 80 : key === 'pressure' ? 1050 : 3000)
-          ? 'RED'
-          : finalValue >= (key === 'temperature' ? 32 : key === 'humidity' ? 70 : key === 'pressure' ? 1030 : 2400)
-            ? 'YELLOW'
-            : 'GREEN';
-
-        return [key, { ...(sensor ?? {}), value: finalValue, level: nextLevel } as Sensor];
+        return [key, { ...sensor, value: Number(adjusted.toFixed(1)) } as Sensor];
       }),
-    ) as Record<string, Sensor>;
-
-    const devices_control = Object.fromEntries(
-      Object.entries(safeDevices).map(([name, device]) => {
-        const nextDevice = device ?? {
-          name,
-          category: 'system',
-          icon: 'factory',
-          power: 0,
-          is_on: false,
-          status: 'Standby',
-          runtime: 0,
-          health: 100,
-        };
-
-        const isEmergency = simulationMode === 'emergency';
-        const isBoost = simulationMode === 'boost';
-        const isSaving = simulationMode === 'efficiency';
-        const powerValue = Number(nextDevice.power ?? 0);
-        const runtimeValue = Number(nextDevice.runtime ?? 0);
-        const healthValue = Number(nextDevice.health ?? 100);
-        const nextPower = clamp(powerValue * ((isEmergency ? 0.52 : isBoost ? 1.22 : isSaving ? 0.8 : 1) * multiplier), 0, powerValue * 1.5 || 1000);
-        const nextHealth = clamp(healthValue + (isEmergency ? -5 : isBoost ? -2 : isSaving ? 2 : 1), 35, 100);
-        const nextIsOn = isEmergency ? false : Boolean(nextDevice.is_on);
-
-        return [name, {
-          ...nextDevice,
-          is_on: nextIsOn,
-          status: nextIsOn ? (isBoost ? 'Running at peak' : isSaving ? 'Energy optimized' : 'Running') : 'Standby',
-          power: nextPower,
-          health: nextHealth,
-          runtime: runtimeValue + (nextIsOn ? 0.14 : 0),
-        } as Device];
-      }),
-    ) as Record<string, Device>;
+    );
 
     return {
       ...status,
-      iot_sensors: iot_sensors,
-      devices_control,
-    } as FactoryStatus;
+      iot_sensors,
+      devices_control: safeDevices,
+    };
   }, [status, simulationMode]);
 
   const refreshStatus = async () => {
     if (!token) return;
     try {
       const next = await api.status();
-      setStatus(next);
-      if (!selectedDevice && Object.keys(next.devices_control).length > 0) {
-        setSelectedDevice(Object.keys(next.devices_control)[0]);
-      }
+      setStatus((prev) => {
+        if (!prev) return next;
+        // Preserve local manual_control states if set
+        const mergedDevices = { ...next.devices_control };
+        for (const [key, dev] of Object.entries(mergedDevices)) {
+          if (prev.devices_control[key]?.manual_control) {
+            dev.manual_control = prev.devices_control[key].manual_control;
+          }
+        }
+        return { ...next, devices_control: mergedDevices };
+      });
     } catch (error) {
-      console.error(error);
+      console.error('Failed to refresh status:', error);
     }
   };
 
@@ -700,13 +314,13 @@ function App() {
     setAuthError('');
   };
 
-  const handleToggle = async (name: string) => {
+  const handleToggle = async (deviceName: string) => {
     if (!status) return;
-    const device = status.devices_control[name];
+    const device = status.devices_control[deviceName];
     if (!device) return;
     try {
       setIsLoading(true);
-      await api.control(name, !device.is_on);
+      await api.control(deviceName, !device.is_on);
       await refreshStatus();
       setDeviceMessage(`${device.name} đã ${device.is_on ? 'tắt' : 'bật'} thành công.`);
       setDeviceError('');
@@ -748,7 +362,7 @@ function App() {
       setDeviceMessage('Đã gửi yêu cầu bảo trì / đặt lại bộ đếm thời gian chạy.');
       setDeviceError('');
     } catch (error) {
-      setDeviceError(error instanceof Error ? error.message : 'Không thể hoàn tất bảo trì.');
+      setDeviceError(error instanceof Error ? error.message : 'Không thể gửi yêu cầu bảo trì.');
     } finally {
       setIsLoading(false);
     }
@@ -760,18 +374,18 @@ function App() {
     setIsSavingProfile(true);
     setProfileMessage('');
     setProfileError('');
+
     try {
       const updated = await api.updateProfile({
-        name: profile.name ?? '',
-        phone: profile.phone ?? '',
-        address: profile.address ?? '',
-        avatarUrl: profile.avatarUrl ?? '',
-        ...(profile.age == null ? {} : { age: profile.age }),
+        name: profile.name,
+        age: profile.age,
+        phone: profile.phone,
+        address: profile.address,
       });
       setProfile(updated);
-      setProfileMessage('Thông tin hồ sơ đã được cập nhật.');
+      setProfileMessage('Đã cập nhật hồ sơ thành công.');
     } catch (error) {
-      setProfileError(error instanceof Error ? error.message : 'Không thể cập nhật hồ sơ.');
+      setProfileError(error instanceof Error ? error.message : 'Cập nhật thất bại.');
     } finally {
       setIsSavingProfile(false);
     }
@@ -780,16 +394,18 @@ function App() {
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    setProfileError('');
+
+    setIsUploadingAvatar(true);
     setProfileMessage('');
+    setProfileError('');
+
     try {
-      setIsUploadingAvatar(true);
       const avatarUrl = await api.uploadAvatar(file);
       const updated = await api.updateProfile({ avatarUrl });
       setProfile(updated);
-      setProfileMessage('Ảnh đại diện đã được tải lên Cloudinary.');
+      setProfileMessage('Tải ảnh đại diện thành công.');
     } catch (error) {
-      setProfileError(error instanceof Error ? error.message : 'Không thể tải lên ảnh đại diện.');
+      setProfileError(error instanceof Error ? error.message : 'Tải ảnh đại diện thất bại.');
     } finally {
       setIsUploadingAvatar(false);
       event.target.value = '';
@@ -822,29 +438,6 @@ function App() {
 
     return alerts.slice(0, 5);
   }, [liveStatus, simulationMode]);
-
-  const mockCameraFeeds = useMemo(() => {
-    const cameraEntries = Object.entries(liveStatus?.devices_control ?? {}).filter(([, device]) =>
-      device.category.toLowerCase().includes('camera') || device.category.toLowerCase().includes('agv'),
-    );
-
-    const fallback = [
-      { id: 'cam-front', name: 'Camera đảo sản phẩm 1', image: 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?auto=format&fit=crop&w=1200&q=80', status: 'Trực tiếp', detail: 'Mặt bằng lắp ráp đang ổn định.' },
-      { id: 'cam-side', name: 'Camera khu vực AGV', image: 'https://images.unsplash.com/photo-1565610222536-ef125c59da73?auto=format&fit=crop&w=1200&q=80', status: 'Đang di chuyển', detail: '2 AGV đang luân chuyển pallet.' },
-      { id: 'cam-pack', name: 'Camera kiểm tra chất lượng', image: 'https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?auto=format&fit=crop&w=1200&q=80', status: 'Theo dõi', detail: 'Dòng sản phẩm mới đang chạy.' },
-    ];
-
-    if (!liveStatus) return fallback;
-    if (!cameraEntries.length) return fallback;
-
-    return cameraEntries.slice(0, 3).map(([key, device], index) => ({
-      id: key,
-      name: device.name,
-      image: fallback[index % fallback.length].image,
-      status: device.is_on ? 'Trực tiếp' : 'Offline',
-      detail: device.is_on ? 'Hệ thống đang ổn định.' : 'Thiết bị đang tạm ngừng.',
-    }));
-  }, [liveStatus]);
 
   const productionEfficiency = useMemo(() => {
     if (!liveStatus) return 0;
@@ -943,19 +536,21 @@ function App() {
     : [{ timestamp: new Date().toISOString(), sensors: liveStatus.iot_sensors, devices_control: liveStatus.devices_control }];
   const recentLogs = logs.slice(0, 8);
   const unreadLogs = logs.filter((log) => !log.is_read).length;
+
   const tabTitles: Record<AppTab, { title: string; subtitle: string }> = {
     dashboard: { title: 'Tổng quan nhà máy', subtitle: 'GIÁM SÁT HỆ THỐNG TRỰC TIẾP' },
-    devices: { title: 'Thiết bị', subtitle: 'DANH SÁCH NODES & CHI TIẾT MÔ PHỎNG' },
+    admin: { title: 'Trung tâm Quản trị (Admin)', subtitle: 'ĐIỀU HÀNH CẤP CAO & LỆNH HÀNG LOẠT' },
+    map2d: { title: 'Sơ đồ mặt bằng 2D', subtitle: 'THEO DÕI VỊ TRÍ & CHUYỂN ĐỘNG THỜI GIAN THỰC' },
+    devices: { title: 'Thiết bị & Điều khiển', subtitle: 'DANH SÁCH NODES & ĐIỀU KHIỂN THỦ CÔNG' },
+    cameras: { title: 'Camera & Góc nhìn thứ nhất (FPV)', subtitle: 'THEO DÕI CCTV & GÓC NHÌN TỪ XE AGV / ROBOT ARM' },
     analytics: { title: 'Phân tích vận hành', subtitle: 'LỊCH SỬ TELEMETRY & SỰ KIỆN' },
-    cameras: { title: 'Camera & giám sát', subtitle: 'THEO DÕI FEED MÔ PHỎNG & CAMERA' },
     profile: { title: 'Hồ sơ vận hành', subtitle: 'TÀI KHOẢN & TRẠNG THÁI KẾT NỐI' },
   };
   const selectedTitle = tabTitles[activeTab];
-  const selectedDeviceKey = selected ? selectedDevice ?? '' : '';
-  const selectedDeviceRecord = selectedDeviceKey ? liveStatus.devices_control[selectedDeviceKey] : null;
 
   return (
     <div className="app-shell">
+      {/* Top Bar Header */}
       <header className="topbar app-topbar">
         <div className="brand-lockup">
           <div className="brand-mark"><Activity size={21} /></div>
@@ -972,12 +567,15 @@ function App() {
         </div>
       </header>
 
+      {/* Main Tabs Navigation */}
       <nav className="main-tabs" aria-label="Factory console sections">
         {([
           ['dashboard', LayoutDashboard, 'Tổng quan'],
+          ['admin', ShieldAlert, 'Admin'],
+          ['map2d', Layers, 'Sơ đồ 2D'],
           ['devices', Cpu, 'Thiết bị'],
+          ['cameras', Camera, 'Camera FPV'],
           ['analytics', ChartNoAxesCombined, 'Phân tích'],
-          ['cameras', Camera, 'Camera'],
           ['profile', UserRound, 'Hồ sơ'],
         ] as const).map(([key, Icon, label]) => (
           <button key={key} type="button" className={`main-tab ${activeTab === key ? 'active' : ''}`} onClick={() => setActiveTab(key)}>
@@ -987,11 +585,18 @@ function App() {
         <div className="nav-status"><span /> API & database online</div>
       </nav>
 
+      {/* Page Heading */}
       <div className="page-heading">
         <div><div className="eyebrow">FACTORY OPERATIONS / {activeTab.toUpperCase()}</div><h2>{selectedTitle.title}</h2><p>{selectedTitle.subtitle}</p></div>
-        <div className="page-heading-meta"><span className="status-pill status-online">{SIMULATION_MODES[simulationMode].label} MODE</span><span><Clock3 size={14} /> {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></div>
+        <div className="page-heading-meta">
+          <span className="status-pill status-online">{SIMULATION_MODES[simulationMode].label} MODE</span>
+          <span><Clock3 size={14} /> {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+        </div>
       </div>
 
+      {/* ========================================================
+          1. TAB DASHBOARD
+          ======================================================== */}
       {activeTab === 'dashboard' && <>
         <section className="status-strip card">
           <div><span>Hiệu suất sản xuất</span><strong>{productionEfficiency}%</strong></div>
@@ -999,105 +604,541 @@ function App() {
           <div><span>Cảnh báo chưa đọc</span><strong>{unreadLogs}</strong></div>
           <div><span>Đồng bộ gần nhất</span><strong>{new Date(liveStatus.last_seen ?? Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</strong></div>
         </section>
+
         <section className="summary-grid dashboard-summary">
           <div className="summary-card accent-blue"><span>Tổng thiết bị</span><strong>{deviceEntries.length}</strong><small>{healthyDevices} thiết bị khỏe mạnh</small></div>
           <div className="summary-card accent-green"><span>Hiệu suất vận hành</span><strong>{productionEfficiency}%</strong><small>Ước tính theo sensor & health</small></div>
           <div className="summary-card accent-amber"><span>Nhiệt độ</span><strong>{formatNumber(getSensorValue(liveStatus.iot_sensors, 'temperature'))}°C</strong><small>Vùng sản xuất</small></div>
           <div className="summary-card accent-rose"><span>Độ ẩm</span><strong>{formatNumber(getSensorValue(liveStatus.iot_sensors, 'humidity'))}%</strong><small>Không khí nhà xưởng</small></div>
         </section>
+
         <main className="dashboard-grid">
           <section className="scene-panel card">
-            <div className="panel-header"><div><div className="eyebrow">DIGITAL TWIN</div><h2>Mặt bằng nhà máy 3D</h2></div><span className="live-tag"><span /> CẬP NHẬT TRỰC TIẾP</span></div>
-            <div className="scene-wrapper"><FactoryScene devices={liveStatus.devices_control} selectedDevice={selectedDevice} onSelect={(key) => { setSelectedDevice(key); setActiveTab('devices'); }} /></div>
+            <div className="panel-header">
+              <div>
+                <div className="eyebrow">DIGITAL TWIN & FACTORY MAP</div>
+                <h2>{dashboardViewMode === '3d' ? 'Mặt bằng nhà máy 3D' : 'Sơ đồ mặt bằng 2D'}</h2>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <div className="map2d-filters" style={{ margin: 0 }}>
+                  <button
+                    type="button"
+                    className={`filter-btn ${dashboardViewMode === '3d' ? 'active' : ''}`}
+                    onClick={() => setDashboardViewMode('3d')}
+                  >
+                    3D Twin
+                  </button>
+                  <button
+                    type="button"
+                    className={`filter-btn ${dashboardViewMode === '2d' ? 'active' : ''}`}
+                    onClick={() => setDashboardViewMode('2d')}
+                  >
+                    2D Map
+                  </button>
+                </div>
+                <span className="live-tag"><span /> CẬP NHẬT TRỰC TIẾP</span>
+              </div>
+            </div>
+
+            <div className="scene-wrapper" style={{ height: '440px' }}>
+              {dashboardViewMode === '3d' ? (
+                <FactoryScene
+                  devices={liveStatus.devices_control}
+                  selectedDevice={selectedDevice}
+                  onSelect={(key) => { setSelectedDevice(key); }}
+                />
+              ) : (
+                <FactoryMap2D
+                  status={liveStatus}
+                  selectedDevice={selectedDevice}
+                  onSelectDevice={(key) => setSelectedDevice(key)}
+                  onOpenManualControl={(key) => setManualControlDeviceId(key)}
+                  onOpenFPV={(camKey) => { setFpvCameraId(camKey); setActiveTab('cameras'); }}
+                  onToggleDevice={(key) => void handleToggle(key)}
+                />
+              )}
+            </div>
           </section>
+
           <aside className="stack-panel">
             <div className="card detail-panel">
               {selected ? <>
-                <div className="panel-header"><div><div className="eyebrow">THIẾT BỊ ĐƯỢC CHỌN</div><h2>{selected.name}</h2></div><span className={`status-pill ${selected.is_on ? 'status-online' : 'status-offline'}`}>{selected.is_on ? 'ONLINE' : 'OFFLINE'}</span></div>
-                <div className="selected-device-type"><span className="device-category-icon"><DeviceIcon device={selected} size={21} /></span><span><strong>{selected.category}</strong><small>ID: {selectedDevice}</small></span></div>
-                <div className="stat-list"><div><span>Công suất</span><strong>{selected.power.toFixed(0)} W</strong></div><div><span>Thời gian chạy</span><strong>{formatRuntime(selected.runtime)}</strong></div><div><span>Sức khỏe</span><strong>{selected.health.toFixed(0)}%</strong></div></div>
-                <button className="toggle-button" onClick={() => void handleToggle(selectedDevice!)} disabled={isLoading}>{isLoading ? 'Đang cập nhật...' : selected.is_on ? 'Tắt thiết bị' : 'Bật thiết bị'}</button>
+                <div className="panel-header">
+                  <div>
+                    <div className="eyebrow">THIẾT BỊ ĐƯỢC CHỌN</div>
+                    <h2>{selected.name}</h2>
+                  </div>
+                  <span className={`status-pill ${selected.is_on ? 'status-online' : 'status-offline'}`}>
+                    {selected.is_on ? 'ONLINE' : 'OFFLINE'}
+                  </span>
+                </div>
+                <div className="selected-device-type">
+                  <span className="device-category-icon"><DeviceIcon device={selected} size={21} /></span>
+                  <span><strong>{selected.category}</strong><small>ID: {selectedDevice}</small></span>
+                </div>
+                <div className="stat-list">
+                  <div><span>Công suất</span><strong>{selected.power.toFixed(0)} W</strong></div>
+                  <div><span>Thời gian chạy</span><strong>{formatRuntime(selected.runtime)}</strong></div>
+                  <div><span>Sức khỏe</span><strong>{selected.health.toFixed(0)}%</strong></div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.8rem', flexWrap: 'wrap' }}>
+                  <button
+                    className="toggle-button"
+                    style={{ flex: 1 }}
+                    onClick={() => void handleToggle(selectedDevice!)}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? 'Đang cập nhật...' : selected.is_on ? 'Tắt thiết bị' : 'Bật thiết bị'}
+                  </button>
+
+                  {(selectedDevice?.includes('robot') || selectedDevice?.includes('avg') || selectedDevice?.includes('camera')) && (
+                    <button
+                      className="secondary-action"
+                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+                      onClick={() => setManualControlDeviceId(selectedDevice)}
+                    >
+                      <Sliders size={15} /> Điều khiển
+                    </button>
+                  )}
+                </div>
+
                 <button className="text-action" onClick={() => setActiveTab('devices')}>Mở trang chi tiết <ChevronRight size={15} /></button>
-              </> : <div className="empty-state">Chọn một thiết bị trên mô hình 3D.</div>}
+              </> : <div className="empty-state">Chọn một thiết bị trên mô hình 3D hoặc sơ đồ 2D.</div>}
             </div>
-            <div className="card alert-panel"><div className="panel-header compact"><div><div className="eyebrow">EVENT STREAM</div><h2>Cảnh báo & sự kiện</h2></div><span>{logs.length} tổng</span></div>
-              <div className="alert-list">{recentLogs.length ? recentLogs.slice(0, 5).map((log) => <div key={log.id} className="alert-item"><span className="alert-dot" style={{ background: log.type === 'warning' ? '#f87171' : '#38bdf8' }} /><div><strong>{log.title}</strong><small>{log.message}</small></div></div>) : alertRows.map((alert, index) => <div key={`${alert.title}-${index}`} className="alert-item"><span className="alert-dot" style={{ background: levelColors[alert.level] }} /><div><strong>{alert.title}</strong><small>{alert.detail}</small></div></div>)}</div>
+
+            <div className="card alert-panel">
+              <div className="panel-header compact">
+                <div><div className="eyebrow">EVENT STREAM</div><h2>Cảnh báo & sự kiện</h2></div>
+                <span>{logs.length} tổng</span>
+              </div>
+              <div className="alert-list">
+                {recentLogs.length ? recentLogs.slice(0, 5).map((log) => (
+                  <div key={log.id} className="alert-item">
+                    <span className="alert-dot" style={{ background: log.type === 'warning' ? '#f87171' : '#38bdf8' }} />
+                    <div><strong>{log.title}</strong><small>{log.message}</small></div>
+                  </div>
+                )) : alertRows.map((alert, index) => (
+                  <div key={`${alert.title}-${index}`} className="alert-item">
+                    <span className="alert-dot" style={{ background: levelColors[alert.level] }} />
+                    <div><strong>{alert.title}</strong><small>{alert.detail}</small></div>
+                  </div>
+                ))}
+              </div>
               <button className="text-action" onClick={() => setActiveTab('analytics')}>Xem lịch sử sự kiện <ChevronRight size={15} /></button>
             </div>
           </aside>
         </main>
+
         <section className="lower-grid dashboard-lower">
-          <div className="card sensor-panel"><div className="panel-header compact"><div><div className="eyebrow">ENVIRONMENT</div><h2>Giám sát môi trường</h2></div><span className="live-tag"><span /> LIVE</span></div><div className="bars">{SENSOR_META.map(({ key, label, unit }) => {
-            const sensor = liveStatus.iot_sensors[key];
-            if (!sensor) return null;
-            const value = getSensorValue(liveStatus.iot_sensors, key);
-            const max = key === 'temperature' ? 50 : key === 'pressure' ? 1100 : key === 'light_intensity' ? 5000 : 100;
-            const level = (sensor.level ?? 'GREEN') as keyof typeof levelColors;
-            return <div key={key} className="bar-row"><div className="bar-meta"><span>{label}</span><strong>{formatNumber(value, key === 'light_intensity' ? 0 : 1)}{unit}</strong></div><div className="bar-track"><div className="bar-fill" style={{ width: `${clamp((value / max) * 100, 2, 100)}%`, background: levelColors[level] }} /></div></div>;
-          })}</div></div>
-          <div className="card table-panel"><div className="panel-header compact"><div><div className="eyebrow">NODE STATUS</div><h2>Thiết bị gần đây</h2></div><button className="text-action" onClick={() => setActiveTab('devices')}>Tất cả <ChevronRight size={15} /></button></div><div className="device-table">{deviceEntries.slice(0, 5).map(([key, device]) => <button key={key} type="button" className={`device-row ${selectedDevice === key ? 'selected' : ''}`} onClick={() => { setSelectedDevice(key); setActiveTab('devices'); }}><div className="device-row-identity"><span className="device-category-icon" style={{ color: device.is_on ? '#00ffc2' : '#f87171' }}><DeviceIcon device={device} /></span><span><strong>{device.name}</strong><small>{device.category}</small></span></div><span className={`mini-pill ${device.is_on ? 'mini-online' : 'mini-offline'}`}>{device.is_on ? 'RUN' : 'OFF'}</span></button>)}</div></div>
+          <div className="card sensor-panel">
+            <div className="panel-header compact">
+              <div><div className="eyebrow">ENVIRONMENT</div><h2>Giám sát môi trường</h2></div>
+              <span className="live-tag"><span /> LIVE</span>
+            </div>
+            <div className="bars">
+              {SENSOR_META.map(({ key, label, unit }) => {
+                const sensor = liveStatus.iot_sensors[key];
+                if (!sensor) return null;
+                const value = getSensorValue(liveStatus.iot_sensors, key);
+                const max = key === 'temperature' ? 50 : key === 'pressure' ? 1100 : key === 'light_intensity' ? 5000 : 100;
+                const level = (sensor.level ?? 'GREEN') as keyof typeof levelColors;
+                return (
+                  <div key={key} className="bar-row">
+                    <div className="bar-meta"><span>{label}</span><strong>{formatNumber(value, key === 'light_intensity' ? 0 : 1)}{unit}</strong></div>
+                    <div className="bar-track"><div className="bar-fill" style={{ width: `${clamp((value / max) * 100, 2, 100)}%`, background: levelColors[level] }} /></div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="card table-panel">
+            <div className="panel-header compact">
+              <div><div className="eyebrow">NODE STATUS</div><h2>Thiết bị gần đây</h2></div>
+              <button className="text-action" onClick={() => setActiveTab('devices')}>Tất cả <ChevronRight size={15} /></button>
+            </div>
+            <div className="device-table">
+              {deviceEntries.slice(0, 5).map(([key, device]) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={`device-row ${selectedDevice === key ? 'selected' : ''}`}
+                  onClick={() => { setSelectedDevice(key); }}
+                >
+                  <div className="device-row-identity">
+                    <span className="device-category-icon" style={{ color: device.is_on ? '#00ffc2' : '#f87171' }}>
+                      <DeviceIcon device={device} />
+                    </span>
+                    <span><strong>{device.name}</strong><small>{device.category}</small></span>
+                  </div>
+                  <span className={`mini-pill ${device.is_on ? 'mini-online' : 'mini-offline'}`}>
+                    {device.is_on ? 'RUN' : 'OFF'}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
         </section>
       </>}
 
-      {activeTab === 'devices' && <section className="devices-workspace">
-        <div className="card devices-list-panel">
-          <div className="panel-header"><div><div className="eyebrow">ACTUATORS / {deviceEntries.length} NODES</div><h2>Danh sách thiết bị</h2></div><button className="icon-button" title="Tải lại dữ liệu" onClick={() => { void refreshStatus(); void refreshSupportingData(); }}><RefreshCw size={17} /></button></div>
-          <label className="search-field"><Search size={17} /><input value={deviceSearch} onChange={(event) => setDeviceSearch(event.target.value)} placeholder="Tìm theo tên hoặc loại thiết bị" /></label>
-          <div className="devices-full-list">{filteredDevices.map(([key, device]) => <button key={key} type="button" className={`device-full-row ${selectedDevice === key ? 'selected' : ''}`} onClick={() => setSelectedDevice(key)}><span className="device-category-icon" style={{ color: device.is_on ? '#00ffc2' : '#f87171' }}><DeviceIcon device={device} size={20} /></span><span className="device-full-copy"><strong>{device.name}</strong><small>{device.category} · {key}</small></span><span className={`device-state ${device.is_on ? 'on' : 'off'}`}><i />{device.is_on ? 'ĐANG CHẠY' : 'ĐANG TẮT'}</span><ChevronRight size={16} className="row-chevron" /></button>)}</div>
-        </div>
-        {selected && selectedDeviceRecord ? <div className="device-detail-column">
-          <div className="card detail-hero-card">
-            <div className="detail-device-heading"><div><div className="eyebrow">DEVICE SIMULATION / {selectedDevice}</div><h2>{selected.name}</h2><p>{selected.category} <span>•</span> Backend node state synchronized</p></div><span className={`status-pill ${selected.is_on ? 'status-online' : 'status-offline'}`}>{selected.is_on ? 'ONLINE' : 'OFFLINE'}</span></div>
-            <div className="device-simulation-frame"><div className="simulation-overlay-top"><span><Activity size={14} /> LIVE SIMULATION</span><span>3D · ORBIT / ZOOM</span></div><DeviceSimulation name={selectedDeviceKey} device={selected} /><div className={`simulation-state ${selected.is_on ? 'running' : 'stopped'}`}><span />{selected.is_on ? 'MÔ PHỎNG ĐANG CHẠY' : 'THIẾT BỊ ĐANG DỪNG'}</div></div>
-            <div className="detail-metrics-grid"><div><Zap size={16} /><span>Tiêu thụ / định mức</span><strong>{selected.power.toFixed(0)} / {Number(selected.rated_power ?? selected.power).toFixed(0)} W</strong></div><div><Clock3 size={16} /><span>Runtime</span><strong>{formatRuntime(selected.runtime)}</strong></div><div><Gauge size={16} /><span>Sức khỏe</span><strong>{selected.health.toFixed(0)}%</strong></div><div><Activity size={16} /><span>Trạng thái</span><strong>{selected.status}</strong></div></div>
-            <div className="device-action-row"><button className={`toggle-button ${selected.is_on ? 'danger-button' : ''}`} onClick={() => void handleToggle(selectedDeviceKey)} disabled={isLoading}>{isLoading ? 'Đang gửi lệnh...' : selected.is_on ? 'Tắt thiết bị' : 'Bật thiết bị'}</button><button className="secondary-action" onClick={() => { setEditDevice((value) => !value); setDeviceError(''); }}><Settings size={16} />{editDevice ? 'Đóng chỉnh sửa' : 'Chỉnh cấu hình'}</button><button className="secondary-action" onClick={() => void handleDeviceMaintenance()} disabled={isLoading}><Wrench size={16} />Bảo trì / reset</button></div>
-            {deviceError && <div className="inline-message error-box">{deviceError}</div>}{deviceMessage && <div className="inline-message success-box">{deviceMessage}</div>}
-            {editDevice && <form className="device-edit-form" onSubmit={(event) => { event.preventDefault(); void handleSaveDevice(); }}><div className="eyebrow">CẤU HÌNH THIẾT BỊ</div><label>Tên thiết bị<input value={editName} onChange={(event) => setEditName(event.target.value)} /></label><div className="edit-fields"><label>Công suất danh định (W)<input type="number" min="0" step="1" value={editPower} onChange={(event) => setEditPower(event.target.value)} /></label><label>Runtime (giờ)<input type="number" min="0" step="0.1" value={editRuntime} onChange={(event) => setEditRuntime(event.target.value)} /></label></div><button className="toggle-button" type="submit" disabled={isLoading}>{isLoading ? 'Đang lưu...' : 'Lưu cấu hình'}</button></form>}
+      {/* ========================================================
+          2. TAB ADMIN DASHBOARD
+          ======================================================== */}
+      {activeTab === 'admin' && (
+        <AdminDashboard
+          status={liveStatus}
+          onRefresh={refreshStatus}
+          onNavigateTab={(tab) => setActiveTab(tab)}
+          onSelectDevice={(key) => setSelectedDevice(key)}
+        />
+      )}
+
+      {/* ========================================================
+          3. TAB MAP 2D FLOOR PLAN
+          ======================================================== */}
+      {activeTab === 'map2d' && (
+        <FactoryMap2D
+          status={liveStatus}
+          selectedDevice={selectedDevice}
+          onSelectDevice={(key) => setSelectedDevice(key)}
+          onOpenManualControl={(key) => setManualControlDeviceId(key)}
+          onOpenFPV={(camKey) => { setFpvCameraId(camKey); setActiveTab('cameras'); }}
+          onToggleDevice={(key) => void handleToggle(key)}
+        />
+      )}
+
+      {/* ========================================================
+          4. TAB CAMERAS & FIRST-PERSON VIEW (FPV)
+          ======================================================== */}
+      {activeTab === 'cameras' && (
+        <section
+          className="cameras-fpv-workspace card"
+          style={{
+            position: 'relative',
+            height: isFpvFullscreen ? '100vh' : '650px',
+            borderRadius: isFpvFullscreen ? '0' : '20px',
+            overflow: 'hidden',
+          }}
+        >
+          {/* 3D Scene in FPV Camera Mode */}
+          <FactoryScene
+            devices={liveStatus.devices_control}
+            selectedDevice={fpvCameraId}
+            onSelect={(key) => setFpvCameraId(key)}
+            fpvCameraId={fpvCameraId}
+            isFpvActive={true}
+          />
+
+          {/* Industrial CCTV HUD Overlay */}
+          <FpvCameraOverlay
+            activeCameraId={fpvCameraId ?? 'security_camera_1'}
+            status={liveStatus}
+            isFullscreen={isFpvFullscreen}
+            onSelectCamera={(camId) => setFpvCameraId(camId)}
+            onExitFpv={() => setActiveTab('dashboard')}
+            onToggleFullscreen={() => setIsFpvFullscreen(!isFpvFullscreen)}
+            onOpenManualControl={(deviceId) => setManualControlDeviceId(deviceId)}
+          />
+        </section>
+      )}
+
+      {/* ========================================================
+          5. TAB DEVICES
+          ======================================================== */}
+      {activeTab === 'devices' && (
+        <section className="devices-workspace">
+          <div className="card devices-list-panel">
+            <div className="panel-header">
+              <div><div className="eyebrow">ACTUATORS / {deviceEntries.length} NODES</div><h2>Danh sách thiết bị</h2></div>
+              <button className="icon-button" title="Tải lại dữ liệu" onClick={() => { void refreshStatus(); void refreshSupportingData(); }}>
+                <RefreshCw size={17} />
+              </button>
+            </div>
+            <label className="search-field">
+              <Search size={17} />
+              <input value={deviceSearch} onChange={(event) => setDeviceSearch(event.target.value)} placeholder="Tìm theo tên hoặc loại thiết bị" />
+            </label>
+            <div className="devices-full-list">
+              {filteredDevices.map(([key, device]) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={`device-full-row ${selectedDevice === key ? 'selected' : ''}`}
+                  onClick={() => setSelectedDevice(key)}
+                >
+                  <span className="device-category-icon" style={{ color: device.is_on ? '#00ffc2' : '#f87171' }}>
+                    <DeviceIcon device={device} size={20} />
+                  </span>
+                  <span className="device-full-copy">
+                    <strong>{device.name}</strong>
+                    <small>{device.category} · {key}</small>
+                  </span>
+                  <span className={`device-state ${device.is_on ? 'on' : 'off'}`}>
+                    <i />{device.is_on ? 'ĐANG CHẠY' : 'ĐANG TẮT'}
+                  </span>
+                  <ChevronRight size={16} className="row-chevron" />
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="card detail-telemetry-card"><div className="panel-header compact"><div><div className="eyebrow">ASSOCIATED TELEMETRY</div><h3>Dữ liệu cảm biến hiện tại</h3></div></div><div className="device-sensor-grid">{SENSOR_META.map(({ key, label, unit }) => { const reading = liveStatus.iot_sensors[key]; return reading ? <div key={key}><span>{label}</span><strong>{formatNumber(reading.value)} {unit}</strong><small className={`sensor-level ${reading.level.toLowerCase()}`}>{reading.level}</small></div> : null; })}</div></div>
-        </div> : <div className="card detail-empty"><Cpu size={38} /><h3>Chọn một thiết bị</h3><p>Chọn một node trong danh sách để xem simulation 3D và thông số vận hành.</p></div>}
-      </section>}
 
-      {activeTab === 'analytics' && <>
-        <section className="analytics-kpis"><div className="card analytics-kpi"><span><Activity size={17} /> Bản ghi telemetry</span><strong>{telemetryHistory.length}</strong><small>Điểm dữ liệu lưu trong database</small></div><div className="card analytics-kpi"><span><Bell size={17} /> Sự kiện cảnh báo</span><strong>{logs.filter((log) => log.type === 'warning').length}</strong><small>{unreadLogs} sự kiện chưa đọc</small></div><div className="card analytics-kpi"><span><Gauge size={17} /> Hiệu suất ước tính</span><strong>{productionEfficiency}%</strong><small>Health, sensor, mức tải</small></div><div className="card analytics-kpi"><span><Zap size={17} /> Tải điện hiện tại</span><strong>{deviceEntries.reduce((sum, [, device]) => sum + device.power, 0).toLocaleString()} W</strong><small>Tổng công suất thiết bị</small></div></section>
-        <section className="analytics-grid">{SENSOR_META.map(({ key, label, unit }, index) => {
-          const values = historical.map((point) => Number(point.sensors?.[key]?.value)).filter(Number.isFinite);
-          const colors = ['#00d2ff', '#fb7185', '#facc15', '#34d399'];
-          return <div className="card analytics-chart-card" key={key}><TrendChart values={values} label={label} unit={unit} color={colors[index % colors.length]} /><div className="chart-footnote">{telemetryHistory.length ? `${telemetryHistory.length} bản ghi · Từ lịch sử backend` : 'Chưa có lịch sử lưu · Đang hiển thị mẫu hiện tại'}</div></div>;
-        })}</section>
-        <section className="card event-history-card"><div className="panel-header"><div><div className="eyebrow">EVENT TIMELINE</div><h2>Nhật ký cảnh báo & sự kiện</h2></div><span>{logs.length} events</span></div>{logs.length ? <div className="event-timeline">{logs.map((log) => <article key={log.id} className="event-entry"><span className={`event-marker ${log.type}`}><Bell size={14} /></span><div className="event-copy"><strong>{log.title}</strong><p>{log.message}</p><small>{log.sensor ? `${log.sensor} · ` : ''}{new Date(log.createdAt).toLocaleString()}</small></div><span className={`event-type ${log.type}`}>{log.type === 'warning' ? 'WARNING' : 'INFO'}</span></article>)}</div> : <div className="empty-state"><Bell size={26} /><span>Chưa có sự kiện trong nhật ký backend.</span></div>}</section>
-      </>}
-
-      {activeTab === 'cameras' && <section className="camera-page">
-        <div className="camera-grid">
-          {mockCameraFeeds.map((feed) => (
-            <article className="card camera-card" key={feed.id}>
-              <div className="camera-preview" style={{ backgroundImage: `url('${feed.image}')` }}>
-                <div className="camera-overlay-top">
-                  <span>{feed.name}</span>
-                  <strong className={feed.status === 'Offline' ? 'camera-offline' : 'camera-live'}>{feed.status}</strong>
+          {selected && selectedDevice ? (
+            <div className="device-detail-column">
+              <div className="card detail-hero-card">
+                <div className="detail-device-heading">
+                  <div>
+                    <div className="eyebrow">DEVICE SIMULATION / {selectedDevice}</div>
+                    <h2>{selected.name}</h2>
+                    <p>{selected.category} <span>•</span> Backend node state synchronized</p>
+                  </div>
+                  <span className={`status-pill ${selected.is_on ? 'status-online' : 'status-offline'}`}>
+                    {selected.is_on ? 'ONLINE' : 'OFFLINE'}
+                  </span>
                 </div>
-                <div className="camera-overlay-bottom">
-                  <span>{feed.detail}</span>
+
+                <div className="device-simulation-frame">
+                  <div className="simulation-overlay-top">
+                    <span><Activity size={14} /> LIVE SIMULATION</span>
+                    <span>3D · ORBIT / ZOOM</span>
+                  </div>
+                  <DeviceSimulation name={selectedDevice} device={selected} />
+                  <div className={`simulation-state ${selected.is_on ? 'running' : 'stopped'}`}>
+                    <span />{selected.is_on ? 'MÔ PHỎNG ĐANG CHẠY' : 'THIẾT BỊ ĐANG DỪNG'}
+                  </div>
+                </div>
+
+                <div className="detail-metrics-grid">
+                  <div><Zap size={16} /><span>Tiêu thụ / định mức</span><strong>{selected.power.toFixed(0)} / {Number(selected.rated_power ?? selected.power).toFixed(0)} W</strong></div>
+                  <div><Clock3 size={16} /><span>Runtime</span><strong>{formatRuntime(selected.runtime)}</strong></div>
+                  <div><Gauge size={16} /><span>Sức khỏe</span><strong>{selected.health.toFixed(0)}%</strong></div>
+                  <div><Activity size={16} /><span>Trạng thái</span><strong>{selected.status}</strong></div>
+                </div>
+
+                <div className="device-action-row">
+                  <button className={`toggle-button ${selected.is_on ? 'danger-button' : ''}`} onClick={() => void handleToggle(selectedDevice)} disabled={isLoading}>
+                    {isLoading ? 'Đang gửi lệnh...' : selected.is_on ? 'Tắt thiết bị' : 'Bật thiết bị'}
+                  </button>
+
+                  {/* Manual Controller Button */}
+                  {(selectedDevice.includes('robot') || selectedDevice.includes('avg') || selectedDevice.includes('camera')) && (
+                    <button
+                      className="secondary-action"
+                      style={{ background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', borderColor: '#38bdf8' }}
+                      onClick={() => setManualControlDeviceId(selectedDevice)}
+                    >
+                      <Sliders size={16} /> Điều khiển thủ công
+                    </button>
+                  )}
+
+                  {/* FPV Camera button for Camera and AGV */}
+                  {(selectedDevice.includes('camera') || selectedDevice.includes('avg') || selectedDevice.includes('arm_robot')) && (
+                    <button
+                      className="secondary-action"
+                      style={{ background: 'rgba(192, 132, 252, 0.2)', color: '#c084fc', borderColor: '#c084fc' }}
+                      onClick={() => { setFpvCameraId(selectedDevice); setActiveTab('cameras'); }}
+                    >
+                      <Video size={16} /> Xem FPV Camera
+                    </button>
+                  )}
+
+                  <button className="secondary-action" onClick={() => { setEditDevice((value) => !value); setDeviceError(''); }}>
+                    <Settings size={16} />{editDevice ? 'Đóng chỉnh sửa' : 'Chỉnh cấu hình'}
+                  </button>
+                  <button className="secondary-action" onClick={() => void handleDeviceMaintenance()} disabled={isLoading}>
+                    <Wrench size={16} />Bảo trì / reset
+                  </button>
+                </div>
+
+                {deviceError && <div className="inline-message error-box">{deviceError}</div>}
+                {deviceMessage && <div className="inline-message success-box">{deviceMessage}</div>}
+
+                {editDevice && (
+                  <form className="device-edit-form" onSubmit={(event) => { event.preventDefault(); void handleSaveDevice(); }}>
+                    <div className="eyebrow">CẤU HÌNH THIẾT BỊ</div>
+                    <label>Tên thiết bị<input value={editName} onChange={(event) => setEditName(event.target.value)} /></label>
+                    <div className="edit-fields">
+                      <label>Công suất danh định (W)<input type="number" min="0" step="1" value={editPower} onChange={(event) => setEditPower(event.target.value)} /></label>
+                      <label>Runtime (giờ)<input type="number" min="0" step="0.1" value={editRuntime} onChange={(event) => setEditRuntime(event.target.value)} /></label>
+                    </div>
+                    <button className="toggle-button" type="submit" disabled={isLoading}>{isLoading ? 'Đang lưu...' : 'Lưu cấu hình'}</button>
+                  </form>
+                )}
+              </div>
+
+              <div className="card detail-telemetry-card">
+                <div className="panel-header compact">
+                  <div><div className="eyebrow">ASSOCIATED TELEMETRY</div><h3>Dữ liệu cảm biến hiện tại</h3></div>
+                </div>
+                <div className="device-sensor-grid">
+                  {SENSOR_META.map(({ key, label, unit }) => {
+                    const reading = liveStatus.iot_sensors[key];
+                    return reading ? (
+                      <div key={key}>
+                        <span>{label}</span>
+                        <strong>{formatNumber(reading.value)} {unit}</strong>
+                        <small className={`sensor-level ${reading.level.toLowerCase()}`}>{reading.level}</small>
+                      </div>
+                    ) : null;
+                  })}
                 </div>
               </div>
-            </article>
-          ))}
-        </div>
-      </section>}
+            </div>
+          ) : (
+            <div className="card detail-empty">
+              <Cpu size={38} />
+              <h3>Chọn một thiết bị</h3>
+              <p>Chọn một node trong danh sách để xem simulation 3D và điều khiển thủ công.</p>
+            </div>
+          )}
+        </section>
+      )}
 
-      {activeTab === 'profile' && <section className="profile-layout">
-        <div className="card profile-identity-card">
-          <div className="profile-avatar-large">{profile?.avatarUrl ? <img src={profile.avatarUrl} alt={profile.name ?? 'avatar'} /> : ((profile?.name || profile?.email || 'OP').slice(0, 2).toUpperCase())}</div>
-          <div className="eyebrow">FACTORY OPERATOR</div>
-          <h2>{profile?.name || 'Operator'}</h2>
-          <p>{profile?.email || '—'}</p>
-          <span className="status-pill status-online">SESSION ACTIVE</span>
-          <div className="profile-identity-stats"><div><span>Thiết bị</span><strong>{deviceEntries.length}</strong></div><div><span>Đang chạy</span><strong>{activeDevices}</strong></div></div>
-        </div>
-        <div className="card profile-form-card"><div className="panel-header"><div><div className="eyebrow">ACCOUNT SETTINGS</div><h2>Thông tin tài khoản</h2></div><UserRound size={19} /></div>{profile ? <form className="profile-form" onSubmit={(event) => void handleSaveProfile(event)}><div className="profile-avatar-editor"><div className="profile-avatar-large small">{profile.avatarUrl ? <img src={profile.avatarUrl} alt={profile.name ?? 'avatar'} /> : ((profile?.name || profile?.email || 'OP').slice(0, 2).toUpperCase())}</div><label className="upload-avatar-btn"><input type="file" accept="image/*" onChange={handleAvatarUpload} />{isUploadingAvatar ? 'Đang tải...' : 'Tải ảnh lên'}</label></div><label>Họ tên<input value={profile.name ?? ''} onChange={(event) => setProfile({ ...profile, name: event.target.value })} /></label><label>Email<input value={profile.email} readOnly /></label><div className="edit-fields"><label>Số điện thoại<input value={profile.phone ?? ''} onChange={(event) => setProfile({ ...profile, phone: event.target.value })} placeholder="Chưa cập nhật" /></label><label>Tuổi<input type="number" min="0" max="130" value={profile.age ?? ''} onChange={(event) => setProfile({ ...profile, age: event.target.value === '' ? null : Number(event.target.value) })} placeholder="—" /></label></div><label>Địa chỉ<input value={profile.address ?? ''} onChange={(event) => setProfile({ ...profile, address: event.target.value })} placeholder="Chưa cập nhật" /></label>{profileError && <div className="error-box">{profileError}</div>}{profileMessage && <div className="success-box">{profileMessage}</div>}<button className="toggle-button" type="submit" disabled={isSavingProfile}>{isSavingProfile ? 'Đang lưu...' : 'Lưu thông tin'}</button></form> : <div className="empty-state">Đang tải dữ liệu hồ sơ...</div>}</div>
-        <div className="card profile-system-card"><div className="eyebrow">SYSTEM CONNECTION</div><h3>Trạng thái hệ thống</h3><div className="system-status-row"><span>Backend API</span><strong><i /> Connected</strong></div><div className="system-status-row"><span>Database telemetry</span><strong><i /> {telemetryHistory.length ? 'Receiving data' : 'No history yet'}</strong></div><div className="system-status-row"><span>Simulation mode</span><strong>{SIMULATION_MODES[simulationMode].label}</strong></div><div className="system-status-row"><span>Phiên đăng nhập</span><strong>{profile?.email}</strong></div></div>
-      </section>}
+      {/* ========================================================
+          6. TAB ANALYTICS
+          ======================================================== */}
+      {activeTab === 'analytics' && <>
+        <section className="analytics-kpis">
+          <div className="card analytics-kpi"><span><Activity size={17} /> Bản ghi telemetry</span><strong>{telemetryHistory.length}</strong><small>Điểm dữ liệu lưu trong database</small></div>
+          <div className="card analytics-kpi"><span><Bell size={17} /> Sự kiện cảnh báo</span><strong>{logs.filter((log) => log.type === 'warning').length}</strong><small>{unreadLogs} sự kiện chưa đọc</small></div>
+          <div className="card analytics-kpi"><span><Gauge size={17} /> Hiệu suất ước tính</span><strong>{productionEfficiency}%</strong><small>Health, sensor, mức tải</small></div>
+          <div className="card analytics-kpi"><span><Zap size={17} /> Tải điện hiện tại</span><strong>{deviceEntries.reduce((sum, [, device]) => sum + device.power, 0).toLocaleString()} W</strong><small>Tổng công suất thiết bị</small></div>
+        </section>
+
+        <section className="analytics-grid">
+          {SENSOR_META.map(({ key, label, unit }, index) => {
+            const values = historical.map((point) => Number(point.sensors?.[key]?.value)).filter(Number.isFinite);
+            const colors = ['#00d2ff', '#fb7185', '#facc15', '#34d399'];
+            return (
+              <div className="card analytics-chart-card" key={key}>
+                <TrendChart values={values} label={label} unit={unit} color={colors[index % colors.length]} />
+                <div className="chart-footnote">
+                  {telemetryHistory.length ? `${telemetryHistory.length} bản ghi · Từ lịch sử backend` : 'Chưa có lịch sử lưu · Đang hiển thị mẫu hiện tại'}
+                </div>
+              </div>
+            );
+          })}
+        </section>
+
+        <section className="card event-history-card">
+          <div className="panel-header">
+            <div><div className="eyebrow">EVENT TIMELINE</div><h2>Nhật ký cảnh báo & sự kiện</h2></div>
+            <span>{logs.length} events</span>
+          </div>
+          {logs.length ? (
+            <div className="event-timeline">
+              {logs.map((log) => (
+                <article key={log.id} className="event-entry">
+                  <span className={`event-marker ${log.type}`}><Bell size={14} /></span>
+                  <div className="event-copy">
+                    <strong>{log.title}</strong>
+                    <p>{log.message}</p>
+                    <small>{log.sensor ? `${log.sensor} · ` : ''}{new Date(log.createdAt).toLocaleString()}</small>
+                  </div>
+                  <span className={`event-type ${log.type}`}>{log.type === 'warning' ? 'WARNING' : 'INFO'}</span>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">
+              <Bell size={26} /><span>Chưa có sự kiện trong nhật ký backend.</span>
+            </div>
+          )}
+        </section>
+      </>}
+
+      {/* ========================================================
+          7. TAB PROFILE
+          ======================================================== */}
+      {activeTab === 'profile' && (
+        <section className="profile-layout">
+          <div className="card profile-identity-card">
+            <div className="profile-avatar-large">
+              {profile?.avatarUrl ? <img src={profile.avatarUrl} alt={profile.name ?? 'avatar'} /> : ((profile?.name || profile?.email || 'OP').slice(0, 2).toUpperCase())}
+            </div>
+            <div className="eyebrow">FACTORY OPERATOR</div>
+            <h2>{profile?.name || 'Operator'}</h2>
+            <p>{profile?.email || '—'}</p>
+            <span className="status-pill status-online">SESSION ACTIVE</span>
+            <div className="profile-identity-stats">
+              <div><span>Thiết bị</span><strong>{deviceEntries.length}</strong></div>
+              <div><span>Đang chạy</span><strong>{activeDevices}</strong></div>
+            </div>
+          </div>
+
+          <div className="card profile-form-card">
+            <div className="panel-header">
+              <div><div className="eyebrow">ACCOUNT SETTINGS</div><h2>Thông tin tài khoản</h2></div>
+              <UserRound size={19} />
+            </div>
+            {profile ? (
+              <form className="profile-form" onSubmit={(event) => void handleSaveProfile(event)}>
+                <div className="profile-avatar-editor">
+                  <div className="profile-avatar-large small">
+                    {profile.avatarUrl ? <img src={profile.avatarUrl} alt={profile.name ?? 'avatar'} /> : ((profile?.name || profile?.email || 'OP').slice(0, 2).toUpperCase())}
+                  </div>
+                  <label className="upload-avatar-btn">
+                    <input type="file" accept="image/*" onChange={handleAvatarUpload} />
+                    {isUploadingAvatar ? 'Đang tải...' : 'Tải ảnh lên'}
+                  </label>
+                </div>
+                <label>Họ tên<input value={profile.name ?? ''} onChange={(event) => setProfile({ ...profile, name: event.target.value })} /></label>
+                <label>Email<input value={profile.email} readOnly /></label>
+                <div className="edit-fields">
+                  <label>Số điện thoại<input value={profile.phone ?? ''} onChange={(event) => setProfile({ ...profile, phone: event.target.value })} placeholder="Chưa cập nhật" /></label>
+                  <label>Tuổi<input type="number" min="0" max="130" value={profile.age ?? ''} onChange={(event) => setProfile({ ...profile, age: event.target.value === '' ? null : Number(event.target.value) })} placeholder="—" /></label>
+                </div>
+                <label>Địa chỉ<input value={profile.address ?? ''} onChange={(event) => setProfile({ ...profile, address: event.target.value })} placeholder="Chưa cập nhật" /></label>
+                {profileError && <div className="error-box">{profileError}</div>}
+                {profileMessage && <div className="success-box">{profileMessage}</div>}
+                <button className="toggle-button" type="submit" disabled={isSavingProfile}>
+                  {isSavingProfile ? 'Đang lưu...' : 'Lưu thông tin'}
+                </button>
+              </form>
+            ) : (
+              <div className="empty-state">Đang tải dữ liệu hồ sơ...</div>
+            )}
+          </div>
+
+          <div className="card profile-system-card">
+            <div className="eyebrow">SYSTEM CONNECTION</div>
+            <h3>Trạng thái hệ thống</h3>
+            <div className="system-status-row"><span>Backend API</span><strong><i /> Connected</strong></div>
+            <div className="system-status-row"><span>Database telemetry</span><strong><i /> {telemetryHistory.length ? 'Receiving data' : 'No history yet'}</strong></div>
+            <div className="system-status-row"><span>Simulation mode</span><strong>{SIMULATION_MODES[simulationMode].label}</strong></div>
+            <div className="system-status-row"><span>Phiên đăng nhập</span><strong>{profile?.email}</strong></div>
+          </div>
+        </section>
+      )}
+
+      {/* ========================================================
+          GLOBAL MANUAL CONTROLLER MODAL (AGV / ROBOT ARM / PTZ)
+          ======================================================== */}
+      {manualControlDeviceId && liveStatus.devices_control[manualControlDeviceId] && (
+        <ManualDeviceControllerModal
+          deviceId={manualControlDeviceId}
+          device={liveStatus.devices_control[manualControlDeviceId]}
+          onClose={() => setManualControlDeviceId(null)}
+          onUpdateState={(devId, manualControl) => {
+            // Optimistic update of local state
+            setStatus((prev) => {
+              if (!prev) return prev;
+              const currentDev = prev.devices_control[devId];
+              if (!currentDev) return prev;
+              return {
+                ...prev,
+                devices_control: {
+                  ...prev.devices_control,
+                  [devId]: {
+                    ...currentDev,
+                    manual_control: manualControl as ManualControl,
+                  },
+                },
+              };
+            });
+          }}
+        />
+      )}
     </div>
   );
 }

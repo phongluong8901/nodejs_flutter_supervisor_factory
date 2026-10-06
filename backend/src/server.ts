@@ -18,7 +18,7 @@ import bcrypt from 'bcryptjs';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import { Server as SocketServer } from 'socket.io';
-import { AlertLog, DeviceState, MongoUser, Telemetry } from './models.js';
+import { AlertLog, ChatMessage, DeviceState, MongoUser, Telemetry } from './models.js';
 import { buildInitialMockState, buildMockReading, DEVICE_INVENTORY } from './mock-data.js';
 import { findAlerts } from './telemetry.js';
 
@@ -153,6 +153,7 @@ auth.post('/register', async (req: Request, res: Response, next: NextFunction) =
       passwordHash: await bcrypt.hash(password, 12),
       name: String(req.body.name ?? email.split('@')[0]).trim(),
     });
+    await DeviceState.create({ ...buildInitialMockState(), ownerId: user._id });
     const token = jwt.sign({}, jwtSecret(), { subject: String(user._id), expiresIn: '7d' });
     return res.status(201).json({ token, user: safeUser(user.toObject()) });
   } catch (error) {
@@ -229,8 +230,11 @@ const iot = express.Router();
 iot.use(requireMongoUser, requireMongo);
 iot.get('/status', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const state = await DeviceState.findOne({ ownerId: req.mongoUser?.id }).lean();
-    if (!state) return res.json({ iot_sensors: {}, devices_control: {}, rgb_status: {}, led_595_status: {} });
+    let state = await DeviceState.findOne({ ownerId: req.mongoUser?.id }).lean();
+    if (!state) {
+      const created = await DeviceState.create({ ...buildInitialMockState(), ownerId: req.mongoUser?.id });
+      state = created.toObject();
+    }
     const online = state.last_seen && Date.now() - new Date(state.last_seen).getTime() < 30_000;
     const sensors = Object.fromEntries((Object.entries(state.iot_sensors ?? {}) as [string, Record<string, any>][]) .map(([key, value]) => [
       key, { ...value, is_online: Boolean(online) },
@@ -316,7 +320,7 @@ iot.post('/control', async (req: Request, res: Response, next: NextFunction) => 
 });
 iot.patch('/devices/:deviceId', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const allowed = ['name', 'power', 'runtime'];
+    const allowed = ['name', 'power', 'runtime', 'manual_control'];
     const deviceId = String(req.params.deviceId);
     const updates = Object.fromEntries(Object.entries(req.body as Record<string, unknown>).filter(([key]) => allowed.includes(key)));
     if (!Object.keys(updates).length) return sendError(res, 400, 'No editable device fields provided');
@@ -332,7 +336,60 @@ iot.patch('/devices/:deviceId', async (req: Request, res: Response, next: NextFu
     }
     const set = Object.fromEntries(Object.entries(updates).map(([key, value]) => [`devices_control.${deviceId}.${key}`, value]));
     await DeviceState.updateOne({ ownerId: req.mongoUser?.id }, { $set: set });
+    io.to(String(req.mongoUser?.id)).emit('device-settings-updated', { deviceId, updates });
     return res.json({ success: true });
+  } catch (error) {
+    return next(error);
+  }
+});
+iot.post('/devices/:deviceId/manual-control', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const deviceId = String(req.params.deviceId);
+    const manualControl = req.body;
+    const state = await DeviceState.findOne({ ownerId: req.mongoUser?.id });
+    const devicesControl = (state?.devices_control ?? {}) as Record<string, any>;
+    if (!devicesControl[deviceId]) return sendError(res, 404, 'Device not found');
+    await DeviceState.updateOne(
+      { ownerId: req.mongoUser?.id },
+      { $set: { [`devices_control.${deviceId}.manual_control`]: manualControl } }
+    );
+    io.to(String(req.mongoUser?.id)).emit('manual-control-changed', { deviceId, manual_control: manualControl });
+    return res.json({ success: true, deviceId, manual_control: manualControl });
+  } catch (error) {
+    return next(error);
+  }
+});
+iot.post('/batch-control', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { action } = req.body as { action: 'emergency_stop' | 'start_all' | 'maintenance' | 'eco_mode' };
+    const state = await DeviceState.findOne({ ownerId: req.mongoUser?.id });
+    if (!state) return sendError(res, 404, 'State not found');
+    const devicesControl = (state.devices_control ?? {}) as Record<string, any>;
+    const updates: Record<string, any> = {};
+    for (const [id, dev] of Object.entries(devicesControl)) {
+      if (action === 'emergency_stop') {
+        updates[`devices_control.${id}.is_on`] = false;
+        updates[`devices_control.${id}.status`] = 'Stopped (Emergency)';
+        updates[`devices_control.${id}.power`] = 0;
+      } else if (action === 'start_all') {
+        updates[`devices_control.${id}.is_on`] = true;
+        updates[`devices_control.${id}.status`] = 'Running';
+        updates[`devices_control.${id}.power`] = dev.rated_power ?? dev.power ?? 100;
+      } else if (action === 'maintenance') {
+        updates[`devices_control.${id}.is_on`] = false;
+        updates[`devices_control.${id}.status`] = 'Maintenance';
+        updates[`devices_control.${id}.power`] = 0;
+        updates[`devices_control.${id}.runtime`] = 0;
+      } else if (action === 'eco_mode') {
+        const isCore = id.includes('robot') || id.includes('conveyor');
+        updates[`devices_control.${id}.is_on`] = isCore;
+        updates[`devices_control.${id}.status`] = isCore ? 'Running (Eco)' : 'Off';
+        updates[`devices_control.${id}.power`] = isCore ? Math.round((dev.rated_power ?? dev.power ?? 100) * 0.7) : 0;
+      }
+    }
+    await DeviceState.updateOne({ ownerId: req.mongoUser?.id }, { $set: updates });
+    io.to(String(req.mongoUser?.id)).emit('batch-control-executed', { action });
+    return res.json({ success: true, action });
   } catch (error) {
     return next(error);
   }
@@ -345,6 +402,281 @@ iot.post('/devices/:deviceId/reset-health', async (req: Request, res: Response, 
     if (!devicesControl[deviceId]) return sendError(res, 404, 'Device not found');
     await DeviceState.updateOne({ ownerId: req.mongoUser?.id }, { $set: { [`devices_control.${deviceId}.runtime`]: 0 } });
     return res.json({ success: true });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// Device CRUD: Add custom device
+iot.post('/devices', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id, name, category, icon, power, position, scale, color } = req.body;
+    if (!id || !name || !category) return sendError(res, 400, 'id, name, and category are required');
+    const state = await DeviceState.findOne({ ownerId: req.mongoUser?.id });
+    if (!state) return sendError(res, 404, 'Device state not found');
+
+    const devicesControl = (state.devices_control ?? {}) as Record<string, any>;
+    if (devicesControl[id]) return sendError(res, 409, 'Device with this ID already exists');
+
+    const newDevice = {
+      name,
+      category,
+      icon: icon ?? 'machine',
+      power: Number(power ?? 200),
+      rated_power: Number(power ?? 200),
+      is_on: false,
+      status: 'Off',
+      runtime: 0,
+      health: 100,
+      updated_at: new Date(),
+    };
+
+    const layout = (state.factory_layout ?? {}) as Record<string, any>;
+    const newLayout: Record<string, any> = {
+      ...layout,
+      [id]: {
+        position: position ?? [0, 0.25, 0],
+        scale: scale ?? [1, 1, 1],
+        color: color ?? '#38bdf8',
+      },
+    };
+
+    await DeviceState.updateOne(
+      { ownerId: req.mongoUser?.id },
+      {
+        $set: {
+          [`devices_control.${id}`]: newDevice,
+          factory_layout: newLayout,
+        },
+      },
+    );
+    io.to(String(req.mongoUser?.id)).emit('device-added', { id, device: newDevice, layout: newLayout[id] });
+    return res.status(201).json({ success: true, id, device: newDevice, layout: newLayout[id] });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// Device CRUD: Delete device
+iot.delete('/devices/:deviceId', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const deviceId = String(req.params.deviceId);
+    const state = await DeviceState.findOne({ ownerId: req.mongoUser?.id });
+    if (!state) return sendError(res, 404, 'Device state not found');
+
+    const devicesControl = (state.devices_control ?? {}) as Record<string, any>;
+    if (!devicesControl[deviceId]) return sendError(res, 404, 'Device not found');
+
+    await DeviceState.updateOne(
+      { ownerId: req.mongoUser?.id },
+      {
+        $unset: {
+          [`devices_control.${deviceId}`]: 1,
+          [`factory_layout.${deviceId}`]: 1,
+        },
+      },
+    );
+    io.to(String(req.mongoUser?.id)).emit('device-deleted', { deviceId });
+    return res.json({ success: true, deviceId });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// Layout: Save custom 2D/3D layout
+iot.patch('/layout', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const layout = req.body;
+    await DeviceState.updateOne(
+      { ownerId: req.mongoUser?.id },
+      { $set: { factory_layout: layout } },
+    );
+    io.to(String(req.mongoUser?.id)).emit('layout-updated', { layout });
+    return res.json({ success: true, layout });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// Layout: Reset layout to default
+iot.post('/layout/reset', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const initial = buildInitialMockState();
+    await DeviceState.updateOne(
+      { ownerId: req.mongoUser?.id },
+      {
+        $set: {
+          devices_control: initial.devices_control,
+          factory_layout: null,
+        },
+      },
+    );
+    io.to(String(req.mongoUser?.id)).emit('layout-reset', {});
+    return res.json({ success: true });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// Chat / M2M Communication Room Endpoints
+iot.get('/chat/messages', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const channel = String(req.query.channel ?? 'general');
+    let messages = await ChatMessage.find({ ownerId: req.mongoUser?.id, channel })
+      .sort({ createdAt: -1 })
+      .limit(60)
+      .lean();
+
+    // If channel is empty, seed initial starter M2M dialogue
+    if (!messages.length) {
+      const starters = [
+        {
+          ownerId: req.mongoUser?.id,
+          channel: 'general',
+          senderId: 'supervisor_core',
+          senderName: 'NEXUS SUPERVISOR AI',
+          senderRole: 'supervisor',
+          avatar: '🤖',
+          content: 'Hệ thống điều phối trung tâm đã kích hoạt. 16 thiết bị IoT đã đồng bộ phiên làm việc.',
+          meta: { status: 'ONLINE', clearance: 'LEVEL-4' },
+          createdAt: new Date(Date.now() - 60000),
+        },
+        {
+          ownerId: req.mongoUser?.id,
+          channel: 'general',
+          senderId: 'avg_robot_1',
+          senderName: 'AGV-ROBOT-01',
+          senderRole: 'device',
+          avatar: '🚗',
+          content: 'AGV 1 báo cáo: Pin 96%, radar LiDAR sẵn sàng. Đang chờ phân bổ hành trình từ Supervisor.',
+          meta: { battery: 96, x: 0, z: 0 },
+          createdAt: new Date(Date.now() - 45000),
+        },
+        {
+          ownerId: req.mongoUser?.id,
+          channel: 'general',
+          senderId: 'arm_robot_1',
+          senderName: 'ARM-ROBOT-01',
+          senderRole: 'device',
+          avatar: '🦾',
+          content: 'Robot Arm 1: Đã hiệu chuẩn 4 khớp trục. Kẹp phôi sẵn sàng tiếp nhận pallet từ Băng tải 1.',
+          meta: { status: 'STANDBY', joints: 4 },
+          createdAt: new Date(Date.now() - 30000),
+        },
+        {
+          ownerId: req.mongoUser?.id,
+          channel: 'general',
+          senderId: 'security_camera_1',
+          senderName: 'CAM-NORTH-01',
+          senderRole: 'device',
+          avatar: '📹',
+          content: 'Camera Góc 1: Tầm nhìn thông thoáng. Không phát hiện vật cản trên luồng di chuyển AGV.',
+          meta: { fov: '140°', fps: 60 },
+          createdAt: new Date(Date.now() - 15000),
+        },
+      ];
+      await ChatMessage.insertMany(starters);
+      messages = await ChatMessage.find({ ownerId: req.mongoUser?.id, channel })
+        .sort({ createdAt: -1 })
+        .limit(60)
+        .lean();
+    }
+
+    return res.json(messages.reverse().map((m) => ({
+      ...m,
+      id: String(m._id),
+      _id: String(m._id),
+    })));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+iot.post('/chat/messages', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { content, channel = 'general', senderName = 'Operator' } = req.body;
+    if (!content || !String(content).trim()) return sendError(res, 400, 'Content is required');
+
+    const userMsg = await ChatMessage.create({
+      ownerId: req.mongoUser?.id,
+      channel,
+      senderId: req.mongoUser?.id,
+      senderName,
+      senderRole: 'user',
+      avatar: '👨‍✈️',
+      content: String(content).trim(),
+      meta: { timestamp: new Date().toISOString() },
+    });
+
+    const userObj = { ...userMsg.toObject(), id: String(userMsg._id), _id: String(userMsg._id) };
+    io.to(String(req.mongoUser?.id)).emit('device-chat-message', userObj);
+
+    // AI Virtual Supervisor response simulation
+    setTimeout(async () => {
+      try {
+        const text = String(content).toLowerCase();
+        let replyName = 'NEXUS SUPERVISOR AI';
+        let replyRole = 'supervisor';
+        let replyAvatar = '🤖';
+        let replyContent = `Đã ghi nhận chỉ thị: "${content}". Hệ thống giám sát đang duy trì vận hành ổn định.`;
+
+        if (text.includes('agv') || text.includes('xe') || text.includes('chạy') || text.includes('di chuyển')) {
+          replyName = 'AGV-ROBOT-01';
+          replyRole = 'device';
+          replyAvatar = '🚗';
+          replyContent = 'AGV-01 nhận lệnh! Đang kích hoạt lộ trình tuần tra, cảm biến LiDAR quét 360° an toàn.';
+        } else if (text.includes('robot') || text.includes('arm') || text.includes('gắp') || text.includes('lắp')) {
+          replyName = 'ARM-ROBOT-01';
+          replyRole = 'device';
+          replyAvatar = '🦾';
+          replyContent = 'Arm-01 xác nhận! Góc xoay đế đã căn chỉnh, bắt đầu chu kỳ kiểm tra phôi sản xuất.';
+        } else if (text.includes('camera') || text.includes('nhìn') || text.includes('an ninh')) {
+          replyName = 'CAM-NORTH-01';
+          replyRole = 'device';
+          replyAvatar = '📹';
+          replyContent = 'CCTV Góc 1 xác nhận: Luồng video trực tiếp 1080p ổn định, không có cảnh báo nhiệt độ cao.';
+        } else if (text.includes('dừng') || text.includes('stop') || text.includes('khẩn cấp')) {
+          replyName = 'NEXUS SUPERVISOR AI';
+          replyRole = 'supervisor';
+          replyAvatar = '🚨';
+          replyContent = 'CẢNH BÁO: Supervisor đã nhận yêu cầu kiểm soát an toàn! Đang thông báo đến tất cả các node.';
+        } else if (text.includes('báo cáo') || text.includes('tình trạng') || text.includes('status')) {
+          replyName = 'NEXUS SUPERVISOR AI';
+          replyRole = 'supervisor';
+          replyAvatar = '🤖';
+          replyContent = 'BÁO CÁO NHANH: Toàn bộ dây chuyền hoạt động bình thường. 16/16 thiết bị phản hồi tín hiệu.';
+        }
+
+        const botMsg = await ChatMessage.create({
+          ownerId: req.mongoUser?.id,
+          channel,
+          senderId: 'supervisor_ai_agent',
+          senderName: replyName,
+          senderRole: replyRole,
+          avatar: replyAvatar,
+          content: replyContent,
+          meta: { aiGenerated: true },
+        });
+
+        const botObj = { ...botMsg.toObject(), id: String(botMsg._id), _id: String(botMsg._id) };
+        io.to(String(req.mongoUser?.id)).emit('device-chat-message', botObj);
+      } catch (err) {
+        console.error('Failed to generate supervisor reply:', err);
+      }
+    }, 900);
+
+    return res.status(201).json(userObj);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+iot.delete('/chat/messages', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const channel = String(req.query.channel ?? 'general');
+    await ChatMessage.deleteMany({ ownerId: req.mongoUser?.id, channel });
+    io.to(String(req.mongoUser?.id)).emit('chat-cleared', { channel });
+    return res.json({ success: true, channel });
   } catch (error) {
     return next(error);
   }

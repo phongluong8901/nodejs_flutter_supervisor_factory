@@ -790,3 +790,1064 @@ button {
   .profile-avatar-editor { flex-direction: column; align-items: flex-start; }
   .event-entry { gap: .5rem; }.event-type { display: none; }
 }
+
+/* ==========================================================================
+   ADMIN DASHBOARD & MASTER CONTROLS
+   ========================================================================== */
+.admin-dashboard-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.admin-header-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.95) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 18px;
+  padding: 1.5rem 1.8rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.admin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem;
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+.admin-header-left h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.6rem;
+  color: #f8fafc;
+}
+
+.admin-header-left p {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.admin-header-actions {
+  display: flex;
+  gap: 0.8rem;
+}
+
+.btn-admin-action {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.1rem;
+  background: rgba(30, 41, 59, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 10px;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.btn-admin-action:hover {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+.admin-feedback-banner {
+  padding: 0.8rem 1.2rem;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  animation: fadeIn 0.3s ease;
+}
+
+.admin-feedback-banner.success {
+  background: rgba(52, 211, 153, 0.15);
+  border: 1px solid #34d399;
+  color: #34d399;
+}
+
+.admin-feedback-banner.error {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid #ef4444;
+  color: #f87171;
+}
+
+.admin-control-strip {
+  padding: 1.4rem 1.6rem;
+}
+
+.control-strip-header {
+  margin-bottom: 1.1rem;
+}
+
+.control-strip-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.master-buttons-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.btn-master {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.2rem;
+  border-radius: 14px;
+  text-align: left;
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.btn-master:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.btn-master .btn-text strong {
+  display: block;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+}
+
+.btn-master .btn-text small {
+  display: block;
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+.btn-estop {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(185, 28, 28, 0.35) 100%);
+  border-color: #ef4444;
+  color: #fecaca;
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.2);
+}
+
+.btn-estop:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.4) 0%, rgba(185, 28, 28, 0.5) 100%);
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+}
+
+.btn-startall {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(21, 128, 61, 0.3) 100%);
+  border-color: #22c55e;
+  color: #bbf7d0;
+  box-shadow: 0 4px 15px rgba(34, 197, 94, 0.15);
+}
+
+.btn-startall:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.35) 0%, rgba(21, 128, 61, 0.45) 100%);
+  box-shadow: 0 6px 20px rgba(34, 197, 94, 0.3);
+}
+
+.btn-eco {
+  background: linear-gradient(135deg, rgba(20, 184, 166, 0.2) 0%, rgba(15, 118, 110, 0.3) 100%);
+  border-color: #14b8a6;
+  color: #99f6e4;
+}
+
+.btn-maint {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(180, 83, 9, 0.3) 100%);
+  border-color: #f59e0b;
+  color: #fde68a;
+}
+
+.admin-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 1rem;
+}
+
+.kpi-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.25rem;
+}
+
+.kpi-icon-wrap {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.kpi-info {
+  flex: 1;
+}
+
+.kpi-label {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.kpi-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin: 0.25rem 0 0.4rem;
+}
+
+.kpi-number {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.kpi-tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+}
+
+.tag-good { background: rgba(52, 211, 153, 0.2); color: #34d399; }
+.tag-warn { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
+.tag-neutral { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; }
+
+.kpi-breakdown {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.admin-zones-section {
+  padding: 1.5rem;
+}
+
+.zones-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+
+.zone-row-card {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 14px;
+  padding: 1rem 1.2rem;
+}
+
+.zone-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.zone-row-header h4 {
+  margin: 0;
+  display: inline-block;
+  font-size: 1rem;
+  color: #f1f5f9;
+}
+
+.zone-badge {
+  display: inline-block;
+  margin-left: 0.6rem;
+  padding: 0.2rem 0.5rem;
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.zone-stats {
+  display: flex;
+  gap: 1.2rem;
+  font-size: 0.82rem;
+  color: #94a3b8;
+}
+
+.zone-stats strong {
+  color: #f8fafc;
+}
+
+.zone-devices-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.device-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  color: #cbd5e1;
+  transition: all 0.15s ease;
+}
+
+.device-chip-btn:hover {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+.device-chip-btn.active .chip-dot {
+  background: #00ffc2;
+  box-shadow: 0 0 6px #00ffc2;
+}
+
+.device-chip-btn.inactive .chip-dot {
+  background: #f87171;
+}
+
+.chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.chip-power {
+  color: #94a3b8;
+  font-size: 0.72rem;
+}
+
+.chip-arrow {
+  opacity: 0.5;
+}
+
+/* ==========================================================================
+   2D FACTORY FLOOR PLAN
+   ========================================================================== */
+.map2d-wrapper {
+  display: flex;
+  flex-direction: column;
+  padding: 1.2rem;
+  position: relative;
+  overflow: hidden;
+  min-height: 650px;
+}
+
+.map2d-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.map2d-title-group h3 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.map2d-filters {
+  display: flex;
+  gap: 0.4rem;
+  background: rgba(15, 23, 42, 0.8);
+  padding: 0.3rem;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.filter-btn {
+  padding: 0.35rem 0.8rem;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.filter-btn.active {
+  background: #38bdf8;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.map2d-zoom-tools {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.tool-btn {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  color: #cbd5e1;
+}
+
+.tool-btn:hover {
+  background: #38bdf8;
+  color: #0f172a;
+}
+
+.map2d-svg-container {
+  width: 100%;
+  height: 540px;
+  background: #070e1b;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.map2d-svg {
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  cursor: grab;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.camera-fov-cone {
+  animation: pulseFov 3s ease-in-out infinite alternate;
+}
+
+@keyframes pulseFov {
+  from { opacity: 0.55; }
+  to { opacity: 0.85; }
+}
+
+.map2d-inspector-card {
+  position: absolute;
+  bottom: 2rem;
+  right: 2rem;
+  width: 320px;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 16px;
+  padding: 1.2rem;
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6);
+  z-index: 10;
+  animation: slideUp 0.2s ease;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.inspector-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.9rem;
+}
+
+.inspector-eyebrow {
+  font-size: 0.68rem;
+  color: #38bdf8;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.inspector-header h4 {
+  margin: 0.2rem 0 0;
+  font-size: 1.15rem;
+}
+
+.inspector-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  background: rgba(2, 6, 23, 0.5);
+  padding: 0.65rem;
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.inspector-metrics span {
+  display: block;
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+.inspector-metrics strong {
+  display: block;
+  font-size: 0.95rem;
+  color: #f1f5f9;
+}
+
+.inspector-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.btn-toggle-quick, .btn-manual-quick, .btn-fpv-quick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.6rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-toggle-quick.btn-start {
+  background: #10b981;
+  color: #ffffff;
+}
+
+.btn-toggle-quick.btn-stop {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.btn-manual-quick {
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+.btn-fpv-quick {
+  background: rgba(192, 132, 252, 0.2);
+  color: #c084fc;
+  border: 1px solid rgba(192, 132, 252, 0.4);
+}
+
+/* ==========================================================================
+   MANUAL CONTROLLERS (DPAD, JOINTS, PTZ)
+   ========================================================================== */
+.manual-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.75);
+  backdrop-filter: blur(8px);
+  display: grid;
+  place-items: center;
+  z-index: 100;
+  padding: 1rem;
+}
+
+.manual-modal-dialog {
+  width: min(100%, 520px);
+  background: #0f172a;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 20px;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  animation: zoomIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes zoomIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.modal-top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.4rem;
+  background: rgba(15, 23, 42, 0.8);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.close-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.close-btn:hover {
+  color: #ffffff;
+}
+
+.controller-box {
+  padding: 1.5rem;
+}
+
+.controller-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.2rem;
+}
+
+.controller-header h4 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #f8fafc;
+}
+
+.controller-subtitle {
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.mode-toggle-group {
+  display: flex;
+  gap: 0.3rem;
+  background: rgba(2, 6, 23, 0.6);
+  padding: 0.25rem;
+  border-radius: 8px;
+}
+
+.btn-mode-pill {
+  padding: 0.35rem 0.7rem;
+  border-radius: 6px;
+  border: none;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: transparent;
+  color: #94a3b8;
+}
+
+.btn-mode-pill.active {
+  background: #38bdf8;
+  color: #0f172a;
+}
+
+.telemetry-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  background: rgba(2, 6, 23, 0.6);
+  padding: 0.8rem;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  margin-bottom: 1.25rem;
+  text-align: center;
+}
+
+.telem-item span {
+  display: block;
+  font-size: 0.65rem;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.telem-item strong {
+  display: block;
+  font-size: 0.88rem;
+  color: #f1f5f9;
+}
+
+.dpad-wrapper {
+  display: flex;
+  justify-content: center;
+  margin: 1.5rem 0;
+}
+
+.dpad-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 56px);
+  grid-template-rows: repeat(3, 56px);
+  gap: 8px;
+}
+
+.dpad-btn {
+  display: grid;
+  place-items: center;
+  background: #1e293b;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 12px;
+  color: #e2e8f0;
+  transition: all 0.1s ease;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.dpad-btn:hover {
+  background: #38bdf8;
+  color: #0f172a;
+  transform: scale(1.05);
+}
+
+.dpad-btn:active {
+  transform: scale(0.95);
+}
+
+.dpad-btn.btn-stop {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.dpad-btn.btn-stop:hover {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.slider-group {
+  margin-bottom: 1rem;
+}
+
+.slider-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  color: #cbd5e1;
+  margin-bottom: 0.4rem;
+}
+
+.slider-group input[type='range'] {
+  width: 100%;
+  accent-color: #38bdf8;
+  cursor: pointer;
+}
+
+.waypoints-group {
+  margin-top: 1.2rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.waypoints-title {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #94a3b8;
+  margin-bottom: 0.6rem;
+}
+
+.waypoints-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+
+.waypoints-grid button {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.8rem;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  color: #e2e8f0;
+  font-size: 0.8rem;
+}
+
+.waypoints-grid button:hover {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+}
+
+.axis-sliders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+/* ==========================================================================
+   FIRST-PERSON VIEW (FPV) CCTV HUD & FILTERS
+   ========================================================================== */
+.fpv-cctv-container {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  z-index: 20;
+  padding: 1.2rem;
+}
+
+.fpv-cctv-container > * {
+  pointer-events: auto;
+}
+
+.fpv-cctv-container.fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #000000;
+}
+
+/* CCTV Filter Overlays */
+.cctv-filter-night {
+  filter: contrast(1.3) brightness(1.2) hue-rotate(90deg) saturate(1.8);
+  box-shadow: inset 0 0 100px rgba(16, 185, 129, 0.35);
+}
+
+.cctv-filter-night::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+  background-size: 100% 4px;
+  pointer-events: none;
+}
+
+.cctv-filter-thermal {
+  filter: contrast(2) invert(0.8) hue-rotate(180deg) saturate(3);
+}
+
+.cctv-filter-bw {
+  filter: grayscale(1) contrast(1.4);
+}
+
+.cctv-hud-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  background: linear-gradient(180deg, rgba(2, 6, 23, 0.85) 0%, rgba(2, 6, 23, 0) 100%);
+  padding: 0.8rem 1rem;
+  border-radius: 12px;
+}
+
+.rec-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #ef4444;
+  font-family: monospace;
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.rec-dot {
+  width: 10px;
+  height: 10px;
+  background: #ef4444;
+  border-radius: 50%;
+  animation: blinkRec 1s step-start infinite;
+}
+
+@keyframes blinkRec {
+  50% { opacity: 0; }
+}
+
+.cam-meta {
+  margin-top: 0.2rem;
+}
+
+.cam-code {
+  font-family: monospace;
+  font-size: 0.72rem;
+  color: #38bdf8;
+  display: block;
+}
+
+.cam-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.cctv-hud-center {
+  text-align: center;
+  font-family: monospace;
+}
+
+.cctv-timestamp {
+  font-size: 0.95rem;
+  color: #f1f5f9;
+  font-weight: 600;
+}
+
+.cctv-resolution {
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.cctv-hud-right {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.hud-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.8rem;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 8px;
+  color: #f1f5f9;
+  font-size: 0.8rem;
+  font-weight: 600;
+  backdrop-filter: blur(6px);
+}
+
+.hud-btn:hover {
+  background: #38bdf8;
+  color: #0f172a;
+}
+
+.hud-btn.btn-exit {
+  background: rgba(239, 68, 68, 0.85);
+  border-color: #ef4444;
+  color: #ffffff;
+}
+
+.hud-btn.btn-exit:hover {
+  background: #dc2626;
+}
+
+/* Framing Brackets */
+.cctv-crosshair-wrap {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 420px;
+  height: 280px;
+  pointer-events: none;
+}
+
+.cctv-bracket {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  border-color: rgba(56, 189, 248, 0.7);
+  border-style: solid;
+}
+
+.bracket-tl { top: 0; left: 0; border-width: 2px 0 0 2px; }
+.bracket-tr { top: 0; right: 0; border-width: 2px 2px 0 0; }
+.bracket-bl { bottom: 0; left: 0; border-width: 0 0 2px 2px; }
+.bracket-br { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
+
+.cctv-center-crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: rgba(56, 189, 248, 0.7);
+}
+
+.cctv-hud-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(0deg, rgba(2, 6, 23, 0.85) 0%, rgba(2, 6, 23, 0) 100%);
+  padding: 0.8rem 1rem;
+  border-radius: 12px;
+}
+
+.hud-telemetry-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-family: monospace;
+}
+
+.telemetry-tag {
+  font-size: 0.74rem;
+  color: #94a3b8;
+}
+
+.cctv-filter-switch {
+  display: flex;
+  gap: 0.35rem;
+  background: rgba(15, 23, 42, 0.85);
+  padding: 0.3rem;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.filter-tag.active {
+  background: #38bdf8;
+  color: #0f172a;
+}
+
+.cctv-cam-selector-dock {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.6rem;
+  background: rgba(2, 6, 23, 0.8);
+  backdrop-filter: blur(8px);
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  margin-top: 0.5rem;
+}
+
+.cam-dock-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  color: #cbd5e1;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.cam-dock-btn:hover {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+.cam-dock-btn.active {
+  background: #38bdf8;
+  border-color: #38bdf8;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+/* Scene wrapper relative for FPV overlay */
+.scene-wrapper {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .master-buttons-grid {
+    grid-template-columns: 1fr;
+  }
+  .cctv-hud-center {
+    display: none;
+  }
+  .map2d-inspector-card {
+    position: static;
+    width: 100%;
+    margin-top: 1rem;
+  }
+  .cctv-crosshair-wrap {
+    width: 260px;
+    height: 180px;
+  }
+}

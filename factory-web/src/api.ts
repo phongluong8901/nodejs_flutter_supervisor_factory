@@ -1,5 +1,21 @@
 export type Sensor = { value: number; unit: string; level: 'GREEN' | 'YELLOW' | 'RED'; is_online: boolean; updated_at: string };
-export type Device = { name: string; category: string; icon: string; power: number; rated_power?: number; is_on: boolean; status: string; runtime: number; health: number };
+export type AgvControl = { mode: 'auto' | 'manual'; x: number; z: number; heading: number; speed: number };
+export type RobotArmControl = { mode: 'auto' | 'manual'; baseAngle: number; shoulderAngle: number; elbowAngle: number; gripper: number };
+export type CameraControl = { mode: 'auto' | 'manual'; pan: number; tilt: number; zoom: number };
+export type ManualControl = AgvControl | RobotArmControl | CameraControl | Record<string, unknown>;
+
+export type Device = {
+  name: string;
+  category: string;
+  icon: string;
+  power: number;
+  rated_power?: number;
+  is_on: boolean;
+  status: string;
+  runtime: number;
+  health: number;
+  manual_control?: ManualControl;
+};
 export type FactoryStatus = { iot_sensors: Record<string, Sensor>; devices_control: Record<string, Device>; last_seen?: string };
 export type User = { id: string; email: string; name?: string; age?: number | null; phone?: string; address?: string; avatarUrl?: string };
 export type AlertLog = { id: string; title: string; message: string; type: 'warning' | 'info'; sensor?: string | null; is_read: boolean; createdAt: string; updatedAt?: string };
@@ -13,25 +29,35 @@ const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET ?
 export const api = {
   get token() { return localStorage.getItem(TOKEN_KEY); },
   async uploadAvatar(file: File): Promise<string> {
-    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
-      throw new Error('Thiếu cấu hình Cloudinary. Vui lòng thêm VITE_CLOUDINARY_CLOUD_NAME và VITE_CLOUDINARY_UPLOAD_PRESET.');
+    if (CLOUDINARY_CLOUD_NAME && CLOUDINARY_UPLOAD_PRESET) {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+      const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+        method: 'POST',
+        body: form,
+      });
+      const data = await response.json().catch(() => ({} as { secure_url?: string; error?: { message?: string } }));
+      if (response.ok && data.secure_url) {
+        return data.secure_url as string;
+      }
     }
 
+    // Direct fallback to Backend Server /auth/upload-avatar
     const form = new FormData();
     form.append('file', file);
-    form.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-
-    const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+    const headers = new Headers();
+    if (api.token) headers.set('Authorization', `Bearer ${api.token}`);
+    const response = await fetch(`${API_URL}/auth/upload-avatar`, {
       method: 'POST',
+      headers,
       body: form,
     });
-
-    const data = await response.json().catch(() => ({} as { secure_url?: string; error?: { message?: string } }));
-    if (!response.ok || !data.secure_url) {
-      throw new Error(data.error?.message || 'Không thể tải ảnh lên Cloudinary.');
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.avatarUrl) {
+      throw new Error(data.message || 'Không thể tải ảnh đại diện lên máy chủ.');
     }
-
-    return data.secure_url as string;
+    return data.avatarUrl as string;
   },
   async login(email: string, password: string): Promise<{ token: string; user: User }> {
     const result = await request<{ token: string; user: User }>('/auth/login', {
@@ -66,10 +92,25 @@ export const api = {
       body: JSON.stringify({ name, is_on }),
     });
   },
-  async updateDevice(name: string, updates: Partial<Pick<Device, 'name' | 'power' | 'runtime'>>) {
+  async updateDevice(name: string, updates: Partial<Pick<Device, 'name' | 'power' | 'runtime' | 'manual_control'>>) {
     return request<{ success: boolean }>(`/iot/devices/${encodeURIComponent(name)}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
+    });
+  },
+  async updateManualControl(name: string, manual_control: ManualControl) {
+    return request<{ success: boolean; deviceId: string; manual_control: ManualControl }>(
+      `/iot/devices/${encodeURIComponent(name)}/manual-control`,
+      {
+        method: 'POST',
+        body: JSON.stringify(manual_control),
+      },
+    );
+  },
+  async batchControl(action: 'emergency_stop' | 'start_all' | 'maintenance' | 'eco_mode') {
+    return request<{ success: boolean; action: string }>('/iot/batch-control', {
+      method: 'POST',
+      body: JSON.stringify({ action }),
     });
   },
 };

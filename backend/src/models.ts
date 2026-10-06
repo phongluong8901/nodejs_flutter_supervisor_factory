@@ -23,6 +23,7 @@ const deviceStateSchema = new Schema(
     rgb_status: { type: Schema.Types.Mixed, default: {} },
     led_595_status: { type: Schema.Types.Mixed, default: {} },
     last_seen: { type: Date, default: null },
+    factory_layout: { type: Schema.Types.Mixed, default: null },
   },
   { minimize: false, timestamps: true },
 );
@@ -35,6 +36,20 @@ const logSchema = new Schema(
     type: { type: String, enum: ['warning', 'info'], default: 'info' },
     is_read: { type: Boolean, default: false },
     sensor: { type: String, default: null },
+  },
+  { timestamps: true },
+);
+
+const chatMessageSchema = new Schema(
+  {
+    ownerId: { type: Schema.Types.ObjectId, ref: 'MongoUser', required: true, index: true },
+    channel: { type: String, default: 'general' },
+    senderId: { type: String, required: true },
+    senderName: { type: String, required: true },
+    senderRole: { type: String, enum: ['supervisor', 'device', 'user', 'system'], default: 'device' },
+    avatar: { type: String, default: '' },
+    content: { type: String, required: true },
+    meta: { type: Schema.Types.Mixed, default: {} },
   },
   { timestamps: true },
 );
@@ -55,4 +70,5 @@ const mongoUserSchema = new Schema(
 export const Telemetry = mongoose.model('Telemetry', telemetrySchema);
 export const DeviceState = mongoose.model('DeviceState', deviceStateSchema);
 export const AlertLog = mongoose.model('AlertLog', logSchema);
+export const ChatMessage = mongoose.model('ChatMessage', chatMessageSchema);
 export const MongoUser = mongoose.model('MongoUser', mongoUserSchema);
